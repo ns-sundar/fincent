@@ -1,3 +1,13 @@
+---
+title: Fincent
+emoji: 💹
+colorFrom: gray
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Fincent
 
 Multi-agent financial assistant scaffold built on **LangGraph**, served
@@ -72,6 +82,8 @@ fincent/
   config.yaml       # Application configuration
   requirements.txt
   Dockerfile        # HuggingFace Spaces (Docker SDK) compatible
+  scripts/docker-entrypoint.sh   # API health-wait + Streamlit (used by Dockerfile)
+  .dockerignore     # Smaller / faster image builds
   run_local.sh      # Local Ubuntu launcher (api + UI)
   README.md
 ```
@@ -148,14 +160,33 @@ curl -s http://localhost:8000/query \
 
 ## Running on HuggingFace Spaces (Docker SDK)
 
-1. Create a Space, choose **Docker** as the SDK, and push this
-   repository.
-2. Add `OPENAI_API_KEY` as a Space secret.
-3. The provided `Dockerfile`:
-   - Runs the FastAPI server internally on port 8000.
-   - Runs Streamlit on `$PORT` (HuggingFace's expected public port,
-     defaults to 7860).
-   - Wires the UI to the API via `FINCENT__UI__API_BASE_URL`.
+1. **Create a Space** at [huggingface.co/new-space](https://huggingface.co/new-space):
+   - **SDK:** Docker
+   - **Hardware:** CPU basic is enough; upgrade if you hit rate limits or latency issues.
+   - Push this repository (or connect a GitHub repo).
+
+2. **Secrets (required)** — Space **Settings → Repository secrets**:
+   - `OPENAI_API_KEY` — your OpenAI API key. The app does not read `.env` in the container; secrets must be set here.
+
+3. **Ports** — Spaces exposes only **`$PORT`** (default **7860**). The image runs:
+   - **Streamlit** on `0.0.0.0:$PORT` (what users open in the browser).
+   - **FastAPI** on **`API_PORT`** (default **8000**) inside the container only.
+   - `scripts/docker-entrypoint.sh` starts FastAPI first, waits until `GET /health` succeeds, then starts Streamlit so the UI never races the API.
+   - `PYTHONPATH=/app` is set so `src.*` imports work without extra flags.
+
+4. **Optional overrides** (Space **Settings → Variables**):
+   - `API_PORT` — change internal API port (default `8000`). If you change it, you must keep it in sync with `FINCENT__UI__API_BASE_URL` or use `FINCENT__UI__API_BASE_URL=http://127.0.0.1:<API_PORT>`.
+
+5. **Build** — First build may take several minutes (`pip install`). If the Space shows a build error, open the **Logs** tab for the full trace.
+
+6. **Local test with Docker** (optional):
+
+   ```bash
+   docker build -t fincent .
+   docker run --rm -p 7860:7860 -e OPENAI_API_KEY=sk-... fincent
+   ```
+
+   Open `http://localhost:7860`.
 
 ---
 

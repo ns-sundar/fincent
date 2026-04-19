@@ -1,0 +1,30 @@
+# Git / IDE
+.git
+.gitignore
+.cursor
+.idea
+.vscode
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+*.egg-info
+.eggs
+
+# Local env (secrets must be supplied via Space settings, not baked in)
+.env
+.env.*
+!.env.example
+
+# Tests / CI (not needed at runtime)
+tests
+
+# Misc
+*.log
+.DS_Store
