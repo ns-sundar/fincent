@@ -1,0 +1,72 @@
+# =====================================================================
+# Fincent application configuration
+#
+# All values can be overridden by environment variables of the same
+# (uppercased) name, e.g. FINCENT_LLM__MODEL=gpt-4o-mini.
+# =====================================================================
+
+app:
+  name: "Fincent"
+  version: "0.1.0"
+  description: "Your Personal Financial Assistant (educational, not professional)"
+  # Owner/about info exposed to the central agent for self-describing
+  # answers ("What can this app do?").
+  about: >
+    Fincent is a personal financial assistant that can answer questions about stocks bonds, 
+    cash, ETFs, mutual funds, general portfolio theory, investment risk, market trading, 
+    brokers, and general IRS/tax topics.
+  
+
+llm:
+  provider: "openai"
+  # Default chat model used by every agent unless they override it.
+  model: "gpt-4o-mini"
+  temperature: 0.1
+  # Max tokens for each individual LLM call.
+  max_tokens: 1024
+  # Per-call timeout in seconds.
+  request_timeout: 60
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  # Path prefix mounted by LangServe for the compiled graph.
+  graph_path: "/fincent"
+  # CORS origins for the FastAPI app.
+  cors_origins:
+    - "*"
+
+ui:
+  # The Streamlit process talks to the FastAPI server via this URL.
+  api_base_url: "http://localhost:8000"
+  page_title: "Fincent"
+  page_icon: "FC"
+
+agents:
+  central:
+    enabled: true
+    # Maximum number of specialist agents the central router may
+    # dispatch in parallel for a single query.
+    max_fanout: 3
+  qna:
+    enabled: true
+    description: >
+      Answers generic (non-personal) financial questions about stocks,
+      bonds, cash, ETFs, mutual funds, general portfolio theory,
+      investment risk, market trading, brokers, and general IRS/tax
+      topics. Refuses personal-finance, personal-portfolio, live
+      market data, planning advice, and personal tax advice.
+  agent_two:
+    enabled: false
+    description: "Reserved placeholder for a future specialist agent."
+  agent_three:
+    enabled: false
+    description: "Reserved placeholder for a future specialist agent."
+  agent_four:
+    enabled: false
+    description: "Reserved placeholder for a future specialist agent."
+
+logging:
+  level: "INFO"
+  # Optional path; leave empty to log only to stderr.
+  file: ""

@@ -1,0 +1,100 @@
+"""LangGraph node implementations.
+
+Each node is a pure function (state in -> partial state out). The
+graph wiring lives in ``src.workflow.graph``.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, List
+
+from src.agents import agent_four, agent_three, agent_two, qna
+from src.agents.central import aggregate, answer_directly, plan_route
+from src.core.schemas import AgentName, AgentResponse, Intent
+from src.utils.logging import get_logger
+from src.workflow.state import GraphState
+
+_logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------
+# Static dispatch table -- intent -> specialist callable
+# ---------------------------------------------------------------------
+
+# Each specialist exposes ``answer(query: str) -> AgentResponse``.
+SPECIALIST_DISPATCH: Dict[Intent, callable] = {
+    Intent.QNA: qna.answer,
+    Intent.AGENT_TWO: agent_two.answer,
+    Intent.AGENT_THREE: agent_three.answer,
+    Intent.AGENT_FOUR: agent_four.answer,
+}
+
+
+# Graph-node names that map 1:1 to specialist intents.
+SPECIALIST_NODE_FOR: Dict[Intent, str] = {
+    Intent.QNA: "qna_node",
+    Intent.AGENT_TWO: "agent_two_node",
+    Intent.AGENT_THREE: "agent_three_node",
+    Intent.AGENT_FOUR: "agent_four_node",
+}
+
+
+# ---------------------------------------------------------------------
+# Nodes
+# ---------------------------------------------------------------------
+
+
+def planner_node(state: GraphState) -> GraphState:
+    """Run the central planner and store the resulting ``RoutingPlan``."""
+    query = state["query"]
+    plan = plan_route(query)
+    _logger.info(
+        "Plan: handled_by_central=%s intents=%s",
+        plan.handled_by_central,
+        [i.value for i in plan.intents],
+    )
+    return {"plan": plan}
+
+
+def central_direct_node(state: GraphState) -> GraphState:
+    """Central agent answers directly (app-info / user-generic)."""
+    query = state["query"]
+    response = answer_directly(query)
+    return {"agent_responses": [response]}
+
+
+def _make_specialist_node(intent: Intent):
+    """Build a node that runs a single specialist for the current query."""
+
+    def _node(state: GraphState) -> GraphState:
+        query = state["query"]
+        try:
+            response: AgentResponse = SPECIALIST_DISPATCH[intent](query)
+        except Exception as exc:  # noqa: BLE001  -- surface as agent error
+            _logger.exception("Specialist %s failed", intent.value)
+            response = AgentResponse(
+                agent=AgentName(intent.value),
+                content=(
+                    f"The {intent.value} agent failed to produce a "
+                    f"response: {exc}"
+                ),
+                metadata={"error": True},
+            )
+        return {"agent_responses": [response]}
+
+    _node.__name__ = f"{intent.value}_node"
+    return _node
+
+
+qna_node = _make_specialist_node(Intent.QNA)
+agent_two_node = _make_specialist_node(Intent.AGENT_TWO)
+agent_three_node = _make_specialist_node(Intent.AGENT_THREE)
+agent_four_node = _make_specialist_node(Intent.AGENT_FOUR)
+
+
+def aggregator_node(state: GraphState) -> GraphState:
+    """Combine collected specialist responses into a final answer."""
+    query = state["query"]
+    responses: List[AgentResponse] = list(state.get("agent_responses") or [])
+    final = aggregate(query, responses)
+    return {"final_answer": final}

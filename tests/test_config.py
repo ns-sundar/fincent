@@ -1,0 +1,43 @@
+"""Tests for the configuration loader."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from src.core.config import AppConfig, load_config
+
+
+def test_load_default_config():
+    """The bundled config.yaml should parse cleanly into AppConfig."""
+    cfg = load_config()
+    assert isinstance(cfg, AppConfig)
+    assert cfg.app.name == "Fincent"
+    assert cfg.llm.provider == "openai"
+    assert cfg.agents.qna.enabled is True
+    assert cfg.agents.agent_two.enabled is False
+
+
+def test_env_var_overrides(monkeypatch, tmp_path: Path):
+    """FINCENT__SECTION__KEY env vars should overlay the YAML defaults."""
+    yaml_path = tmp_path / "config.yaml"
+    yaml_path.write_text(
+        "llm:\n  model: gpt-4o-mini\n  temperature: 0.1\n"
+        "server:\n  port: 8000\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FINCENT__LLM__MODEL", "gpt-test")
+    monkeypatch.setenv("FINCENT__SERVER__PORT", "9999")
+    monkeypatch.setenv("FINCENT__LLM__TEMPERATURE", "0.7")
+
+    cfg = load_config(yaml_path)
+    assert cfg.llm.model == "gpt-test"
+    assert cfg.server.port == 9999
+    assert cfg.llm.temperature == 0.7
+
+
+def test_missing_yaml_uses_defaults(tmp_path: Path):
+    """An absent config file is fine; defaults apply."""
+    cfg = load_config(tmp_path / "does-not-exist.yaml")
+    assert cfg.app.name == "Fincent"
+    assert cfg.server.port == 8000
