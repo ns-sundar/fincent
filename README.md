@@ -148,12 +148,81 @@ still accepting queries (the agent degrades to plain LLM answers).
 }
 ```
 
-**Retrieval at query time.** When the Q&A agent receives a query it
-calls the cached retriever (FAISS similarity search with `top_k=4`
-by default) and prepends a `<context>` block containing the top
-chunks to the system prompt. Source URLs are included so the LLM can
-cite inline, and the returned `AgentResponse.metadata.sources` lists
-the hits for the UI's routing-details expander.
+**Retrieval at query time (agentic RAG).** The Q&A agent routes every
+query through the canonical search function
+[`src.rag.tool.rag_search`](src/rag/tool.py) — the same function the MCP
+server (below) exposes. It:
+
+1. Retrieves **top-k** (default **`5`**, `cfg.rag.top_k`) chunks from
+   the FAISS index.
+2. Re-ranks with **MMR** (Maximal Marginal Relevance) by default
+   (`cfg.rag.use_mmr`) so the top-k is not three near-duplicate
+   chunks. Tunable via `cfg.rag.mmr_fetch_k` (candidate pool) and
+   `cfg.rag.mmr_lambda` in `[0, 1]` (1.0 = pure similarity, 0.0 =
+   maximum diversity).
+3. Honours **source-filter narrowing** expressed in natural language.
+   Phrases such as *“Cite only IRS documents”*, *“Based on SEC
+   documents, …”*, *“Per FINRA rules, …”*, *“According to the Federal
+   Reserve, …”* are detected by
+   [`detect_source_filter`](src/rag/tool.py) and restrict retrieval to
+   chunks whose `metadata.tags.source` matches the requested family.
+   Supported sources match the values shipped in
+   `rag/fincent_rag_articles.json`:
+   `irs`, `sec`, `finra`, `fdic`, `fed`, `occ`, `treasury`, `cbp`,
+   `nyse`, `investopedia`, `bogleheads`, `fidelity`, `tax-foundation`.
+
+**Citations.** RAG-grounded replies use inline `[n]` markers in the
+prose (`n` matches the numbered `<context>` entries). The model is
+instructed to end with a single **`## Sources`** section when it cited
+at least one chunk, and to list **only** those context entries whose
+`[n]` appears in the answer—never every retrieved passage. Titles and
+URLs must be copied from the context block (no invented links).
+
+The API still parses `[n]` from the full reply and fills
+**`AgentResponse.metadata.sources`** with that **cited subset** (`url`,
+`title`, `tags`, `score`), plus **`cited_chunk_indices`**, so UIs and
+tests get a reliable structured list even if the model’s `## Sources`
+wording differs slightly.
+
+### MCP server (optional sidecar)
+
+The FAISS vector_db is also wrapped in a **Model Context Protocol**
+server at [`src/rag/mcp_server.py`](src/rag/mcp_server.py) which
+publishes a single tool — **`rag_search`** (name configurable) — that
+any MCP-capable client (Claude Desktop, Cursor, LangChain MCP adapter,
+…) can call.
+
+Tool contract:
+
+| Arg      | Type              | Notes |
+|----------|-------------------|-------|
+| `query`  | `str`             | Natural language query. |
+| `source` | `str \| null`     | Canonical source tag (or alias, e.g. `"Federal Reserve"`). Limits hits to that `tags.source` family. |
+| `top_k`  | `int \| null`     | Defaults to `cfg.rag.top_k` (5). |
+
+Each result is a dict with `text`, `url`, `title`, `tags`
+(`source`, `category[]`), and `score`.
+
+Run it standalone:
+
+```bash
+python -m src.rag.mcp_server
+```
+
+Transports are configurable via `cfg.rag.mcp_server.transport`:
+
+- **`stdio`** (default) — suitable when the MCP client spawns the
+  server (e.g. Claude Desktop / Cursor's MCP config).
+- **`streamable-http`** — long-lived HTTP server with bidirectional
+  streaming on the **`/mcp`** endpoint at
+  `cfg.rag.mcp_server.host:port` (default `127.0.0.1:8765`). This is
+  the MCP spec's replacement for the **deprecated SSE** transport; if
+  you set `transport: "sse"` the server will refuse to start with a
+  pointer to `"streamable-http"`.
+
+The MCP sidecar is **independent** of the in-process Q&A agent: both
+call the same `rag_search` function, so disabling MCP (the default)
+does not change Q&A behaviour.
 
 ---
 
@@ -164,13 +233,13 @@ fincent/
   src/
     agents/
       central/      # Orchestrator (planner + direct + aggregator)
-      qna/          # Generic financial Q&A (skeleton)
+      qna/          # Generic financial Q&A (agentic RAG: top-k + MMR + source-filter citations)
       agent_two/    # Reserved
       agent_three/  # Reserved
       agent_four/   # Reserved
     core/           # Config, LLM factory, shared schemas
     data/           # Python pkg ``src.data`` — NOT the same as ``/data`` on disk
-    rag/            # RAG: loaders, ingestion, FAISS retriever, status singleton
+    rag/            # RAG: loaders, ingestion, FAISS retriever, canonical search tool, MCP server, status
     web_app/        # Streamlit UI + API client
     utils/          # Logging, helpers
     workflow/       # LangGraph state, nodes, graph, FastAPI server
@@ -204,7 +273,15 @@ export FINCENT__RAG__VECTOR_DB_PATH=/data/vector_db
 export FINCENT__RAG__EMBEDDING_MODEL=text-embedding-3-small
 export FINCENT__RAG__CHUNK_SIZE=1000
 export FINCENT__RAG__CHUNK_OVERLAP=200
-export FINCENT__RAG__TOP_K=4
+export FINCENT__RAG__TOP_K=5
+# MMR (diversified re-ranking at query time)
+export FINCENT__RAG__USE_MMR=true
+export FINCENT__RAG__MMR_FETCH_K=20
+export FINCENT__RAG__MMR_LAMBDA=0.5
+# Optional MCP sidecar (exposes vector_db as a tool)
+export FINCENT__RAG__MCP_SERVER__ENABLED=false
+export FINCENT__RAG__MCP_SERVER__TRANSPORT=stdio   # or "streamable-http"
+export FINCENT__RAG__MCP_SERVER__TOOL_NAME=rag_search
 ```
 
 The only **required** environment variable is:

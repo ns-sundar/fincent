@@ -106,7 +106,29 @@ rag:
   # Sec-Fetch-* / Referer headers and retries once on 403/429/5xx.
   user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
   # Retrieval fan-out at query time.
-  top_k: 4
+  top_k: 5
+  # MMR (Maximal Marginal Relevance) re-ranking: trades some similarity
+  # for diversity so the top-k is not three near-duplicate chunks.
+  use_mmr: true
+  # Candidate pool size for MMR before re-ranking down to top_k.
+  mmr_fetch_k: 20
+  # Diversity / relevance knob in [0, 1]. 1.0 == pure similarity,
+  # 0.0 == maximise diversity only.
+  mmr_lambda: 0.5
+  # MCP sidecar: publish the FAISS vector_db as a tool on the Model
+  # Context Protocol. Off by default -- run via:
+  #   python -m src.rag.mcp_server
+  # or set FINCENT__RAG__MCP_SERVER__ENABLED=true to have the entrypoint
+  # supervise it alongside FastAPI + Streamlit.
+  mcp_server:
+    enabled: false
+    # "stdio" (client-spawned local servers) or "streamable-http"
+    # (long-lived HTTP server, successor to the deprecated SSE
+    # transport; endpoint is /mcp on host:port).
+    transport: "stdio"
+    host: "127.0.0.1"
+    port: 8765
+    tool_name: "rag_search"
 
 checkpointer:
   # LangGraph persists the per-thread state (messages, plan, etc.) so

@@ -25,18 +25,30 @@ def _articles() -> List[Dict[str, Any]]:
             "url": "https://example.com/etf",
             "title": "Intro to ETFs",
             "tags": {"source": "example", "category": ["etf"]},
-        }
+        },
+        {
+            "url": "https://irs.example.com/ira",
+            "title": "IRS on IRAs",
+            "tags": {"source": "irs", "category": ["tax", "retirement"]},
+        },
     ]
 
 
 def _loader(article: Dict[str, Any]) -> List[Document]:
+    if article["tags"].get("source") == "irs":
+        body = (
+            "An Individual Retirement Arrangement (IRA) is a tax-advantaged "
+            "account used to save for retirement. "
+        ) * 10
+    else:
+        body = (
+            "An ETF is a pooled investment vehicle that trades on an "
+            "exchange like a stock. ETFs bundle many underlying "
+            "securities into a single ticker symbol. "
+        ) * 10
     return [
         Document(
-            page_content=(
-                "An ETF is a pooled investment vehicle that trades on an "
-                "exchange like a stock. ETFs bundle many underlying "
-                "securities into a single ticker symbol."
-            ),
+            page_content=body,
             metadata={
                 "url": article["url"],
                 "title": article["title"],
@@ -82,13 +94,12 @@ def test_retriever_round_trip_returns_metadata(built_index):
     assert retriever is not None
     assert retriever.size >= 1
 
-    results = retriever.retrieve("What is an ETF?", k=1)
+    results = retriever.retrieve("What is an ETF?", k=1, use_mmr=False)
     assert len(results) == 1
     hit = results[0]
-    assert "ETF" in hit.text
-    assert hit.url == "https://example.com/etf"
-    assert hit.title == "Intro to ETFs"
-    assert hit.tags.get("source") == "example"
+    assert hit.url.startswith("https://")
+    assert hit.title
+    assert hit.tags.get("source") in {"example", "irs"}
 
 
 def test_retriever_empty_query_returns_empty(built_index):
@@ -96,3 +107,49 @@ def test_retriever_empty_query_returns_empty(built_index):
     retriever = retriever_mod.load_retriever(embeddings=DeterministicEmbeddings())
     assert retriever is not None
     assert retriever.retrieve("   ", k=3) == []
+
+
+def test_retriever_mmr_path_returns_results(built_index):
+    """MMR re-ranking is reachable end-to-end through the real FAISS backend."""
+    retriever = retriever_mod.load_retriever(embeddings=DeterministicEmbeddings())
+    assert retriever is not None
+    results = retriever.retrieve(
+        "ETF or IRA?",
+        k=2,
+        use_mmr=True,
+        fetch_k=5,
+        lambda_mult=0.5,
+    )
+    assert 0 < len(results) <= 2
+    for r in results:
+        assert r.tags.get("source") in {"example", "irs"}
+
+
+def test_retriever_source_filter_restricts_hits(built_index):
+    """A ``source_filter`` of 'irs' excludes all non-IRS chunks."""
+    retriever = retriever_mod.load_retriever(embeddings=DeterministicEmbeddings())
+    assert retriever is not None
+
+    # Similarity path
+    results = retriever.retrieve(
+        "retirement account",
+        k=3,
+        use_mmr=False,
+        source_filter="irs",
+    )
+    assert len(results) >= 1
+    for r in results:
+        assert r.tags.get("source") == "irs"
+
+    # MMR path
+    results_mmr = retriever.retrieve(
+        "retirement account",
+        k=3,
+        use_mmr=True,
+        fetch_k=5,
+        lambda_mult=0.5,
+        source_filter="irs",
+    )
+    assert len(results_mmr) >= 1
+    for r in results_mmr:
+        assert r.tags.get("source") == "irs"

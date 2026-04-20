@@ -42,12 +42,44 @@ class RetrievedDoc:
         return self.url
 
 
+def _doc_source(doc: Any) -> str:
+    """Extract the ``tags.source`` value from a LangChain Document (lowercased)."""
+    meta = getattr(doc, "metadata", None) or {}
+    tags = meta.get("tags") or {}
+    return str(tags.get("source") or "").strip().lower()
+
+
+def _make_source_filter(source: str):
+    """Return a LangChain FAISS-compatible ``filter`` callable.
+
+    FAISS accepts a callable ``filter(metadata) -> bool`` in recent
+    LangChain versions. We normalise the needle once and compare
+    case-insensitively so callers can pass ``"IRS"`` or ``"irs"``.
+    """
+    needle = source.strip().lower()
+
+    def _predicate(metadata: Dict[str, Any]) -> bool:
+        tags = (metadata or {}).get("tags") or {}
+        return str(tags.get("source") or "").strip().lower() == needle
+
+    return _predicate
+
+
 class Retriever:
     """Thin wrapper around a LangChain FAISS vector store.
 
     The wrapper hides the embedding backend and the 2-tuple
     ``(Document, score)`` return shape from agents, exposing a simple
-    ``retrieve(query, k=...)`` API that yields :class:`RetrievedDoc`.
+    ``retrieve(query, ...)`` API that yields :class:`RetrievedDoc`.
+
+    Supports two search modes:
+
+    * **similarity**  - raw cosine/L2 similarity.
+    * **MMR**         - re-ranks a larger candidate pool with Maximal
+                         Marginal Relevance to diversify results.
+
+    Supports post-filtering by the ``tags.source`` metadata value
+    stamped at ingestion time (e.g. ``"irs"``, ``"sec"``, ``"finra"``).
     """
 
     def __init__(
@@ -55,9 +87,15 @@ class Retriever:
         vector_store: Any,
         *,
         default_k: int,
+        use_mmr: bool = True,
+        fetch_k: int = 20,
+        lambda_mult: float = 0.5,
     ) -> None:
         self._vs = vector_store
         self._default_k: int = default_k
+        self._default_use_mmr: bool = use_mmr
+        self._default_fetch_k: int = fetch_k
+        self._default_lambda_mult: float = lambda_mult
 
     @property
     def size(self) -> int:
@@ -65,23 +103,70 @@ class Retriever:
         index = getattr(self._vs, "index", None)
         return int(getattr(index, "ntotal", 0) or 0)
 
-    def retrieve(self, query: str, *, k: Optional[int] = None) -> List[RetrievedDoc]:
-        """Run similarity search and return up to ``k`` documents."""
+    def retrieve(
+        self,
+        query: str,
+        *,
+        k: Optional[int] = None,
+        use_mmr: Optional[bool] = None,
+        fetch_k: Optional[int] = None,
+        lambda_mult: Optional[float] = None,
+        source_filter: Optional[str] = None,
+    ) -> List[RetrievedDoc]:
+        """Run retrieval and return up to ``k`` documents.
+
+        Args:
+            query:          The search string.
+            k:              Number of results to return (defaults to
+                            ``cfg.rag.top_k``).
+            use_mmr:        Toggle MMR re-ranking (defaults to
+                            ``cfg.rag.use_mmr``).
+            fetch_k:        Candidate pool size for MMR (defaults to
+                            ``cfg.rag.mmr_fetch_k``).
+            lambda_mult:    MMR diversity/relevance in [0, 1].
+            source_filter:  Restrict hits to chunks whose
+                            ``metadata.tags.source`` matches (case
+                            insensitive). Example: ``"irs"``, ``"sec"``.
+        """
         top_k = k or self._default_k
         if not query.strip() or top_k <= 0:
             return []
+
+        effective_use_mmr = self._default_use_mmr if use_mmr is None else use_mmr
+        effective_fetch_k = fetch_k or self._default_fetch_k
+        effective_lambda = (
+            self._default_lambda_mult if lambda_mult is None else lambda_mult
+        )
+        flt = _make_source_filter(source_filter) if source_filter else None
+
         try:
-            pairs = self._vs.similarity_search_with_score(query, k=top_k)
+            if effective_use_mmr:
+                docs = self._mmr_search(
+                    query,
+                    k=top_k,
+                    fetch_k=max(effective_fetch_k, top_k),
+                    lambda_mult=effective_lambda,
+                    source_filter=source_filter,
+                    filter_callable=flt,
+                )
+                pairs = [(d, 0.0) for d in docs]
+            else:
+                pairs = self._similarity_search(
+                    query,
+                    k=top_k,
+                    source_filter=source_filter,
+                    filter_callable=flt,
+                )
         except Exception as exc:  # noqa: BLE001 -- keep agent responsive
-            _logger.warning("FAISS similarity search failed: %s", exc)
+            _logger.warning("FAISS retrieval failed: %s", exc)
             return []
 
         out: List[RetrievedDoc] = []
         for doc, score in pairs:
-            meta = dict(doc.metadata or {})
+            meta = dict(getattr(doc, "metadata", None) or {})
             out.append(
                 RetrievedDoc(
-                    text=str(doc.page_content or ""),
+                    text=str(getattr(doc, "page_content", "") or ""),
                     url=str(meta.get("url") or meta.get("source") or ""),
                     title=str(meta.get("title") or ""),
                     tags=dict(meta.get("tags") or {}),
@@ -89,6 +174,80 @@ class Retriever:
                 )
             )
         return out
+
+    # ------------------------------------------------------------------
+    # Internal search helpers -- isolated so they can be monkey-patched
+    # in tests and so the two code paths (similarity / MMR) don't clutter
+    # the public ``retrieve`` method.
+    # ------------------------------------------------------------------
+
+    def _similarity_search(
+        self,
+        query: str,
+        *,
+        k: int,
+        source_filter: Optional[str],
+        filter_callable: Optional[Any],
+    ) -> List[tuple[Any, float]]:
+        """Similarity search with optional LangChain-native filter.
+
+        Falls back to Python-side filtering when the underlying store
+        does not accept a ``filter`` kwarg (older LangChain versions or
+        custom test doubles).
+        """
+        try:
+            if filter_callable is not None:
+                return list(
+                    self._vs.similarity_search_with_score(
+                        query, k=k, filter=filter_callable
+                    )
+                )
+        except TypeError:
+            pass
+
+        over_fetch = k * 5 if source_filter else k
+        pairs = list(self._vs.similarity_search_with_score(query, k=over_fetch))
+        if source_filter:
+            pairs = [p for p in pairs if _doc_source(p[0]) == source_filter.lower()]
+        return pairs[:k]
+
+    def _mmr_search(
+        self,
+        query: str,
+        *,
+        k: int,
+        fetch_k: int,
+        lambda_mult: float,
+        source_filter: Optional[str],
+        filter_callable: Optional[Any],
+    ) -> List[Any]:
+        """MMR search; returns Documents (FAISS MMR does not expose scores)."""
+        kwargs: Dict[str, Any] = {
+            "k": k,
+            "fetch_k": max(fetch_k, k),
+            "lambda_mult": lambda_mult,
+        }
+        try:
+            if filter_callable is not None:
+                return list(
+                    self._vs.max_marginal_relevance_search(
+                        query, filter=filter_callable, **kwargs
+                    )
+                )
+            return list(self._vs.max_marginal_relevance_search(query, **kwargs))
+        except TypeError:
+            # Older backends / doubles may not support ``filter``; emulate it.
+            docs = list(
+                self._vs.max_marginal_relevance_search(
+                    query,
+                    k=fetch_k if source_filter else k,
+                    fetch_k=max(fetch_k, k),
+                    lambda_mult=lambda_mult,
+                )
+            )
+            if source_filter:
+                docs = [d for d in docs if _doc_source(d) == source_filter.lower()]
+            return docs[:k]
 
 
 # ---------------------------------------------------------------------
@@ -134,7 +293,13 @@ def load_retriever(
         allow_dangerous_deserialization=True,
     )
     _logger.info("Loaded FAISS retriever from %s (%d vectors)", vector_dir, vs.index.ntotal)
-    return Retriever(vs, default_k=cfg.rag.top_k)
+    return Retriever(
+        vs,
+        default_k=cfg.rag.top_k,
+        use_mmr=cfg.rag.use_mmr,
+        fetch_k=cfg.rag.mmr_fetch_k,
+        lambda_mult=cfg.rag.mmr_lambda,
+    )
 
 
 @lru_cache(maxsize=1)

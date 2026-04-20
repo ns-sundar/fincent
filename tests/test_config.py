@@ -26,6 +26,13 @@ def test_load_default_config(monkeypatch):
     assert cfg.rag.vector_db_path == "/data/vector_db"
     assert cfg.rag.chunk_size == 1000
     assert cfg.rag.chunk_overlap == 200
+    assert cfg.rag.top_k == 5
+    assert cfg.rag.use_mmr is True
+    assert cfg.rag.mmr_fetch_k == 20
+    assert cfg.rag.mmr_lambda == 0.5
+    assert cfg.rag.mcp_server.enabled is False
+    assert cfg.rag.mcp_server.transport == "stdio"
+    assert cfg.rag.mcp_server.tool_name == "rag_search"
     assert cfg.server.startup_health_wait_seconds == 300
     assert cfg.server.healthcheck_interval_seconds == 90
 

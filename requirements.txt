@@ -28,6 +28,10 @@ unstructured[pdf]>=0.15.0
 pypdf>=4.0.0
 # Token-aware recursive chunking (~1000 tokens, 200 overlap).
 tiktoken>=0.7.0
+# Model Context Protocol server that exposes the FAISS vector_db as a tool
+# (src/rag/mcp_server.py). Optional at runtime: only imported when the MCP
+# sidecar is launched; the in-process Q&A agent does not require it.
+mcp>=1.2.0
 
 # --- Config / data ---
 pydantic>=2.7.0

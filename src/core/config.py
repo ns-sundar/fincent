@@ -89,6 +89,29 @@ class CheckpointerConfig(BaseModel):
     path: str = "/data/checkpoints.sqlite"
 
 
+class McpServerConfig(BaseModel):
+    """Settings for the MCP server that wraps the FAISS vector_db as a tool.
+
+    The server exposes a single tool (``rag_search``) over the MCP
+    protocol. It is opt-in; the in-process Q&A agent uses the same
+    underlying search function directly regardless.
+    """
+
+    enabled: bool = False
+    # "stdio" or "streamable-http".
+    #   stdio            - client-spawned local servers (Claude
+    #                      Desktop, Cursor).
+    #   streamable-http  - long-lived HTTP server with bidirectional
+    #                      streaming on the /mcp endpoint. This is the
+    #                      successor to the deprecated SSE transport
+    #                      in the MCP spec / Python SDK.
+    transport: str = "stdio"
+    host: str = "127.0.0.1"
+    port: int = 8765
+    # Name the tool advertises to MCP clients.
+    tool_name: str = "rag_search"
+
+
 class RagConfig(BaseModel):
     """Settings for Retrieval-Augmented Generation (Q&A agent).
 
@@ -108,7 +131,18 @@ class RagConfig(BaseModel):
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     )
-    top_k: int = 4
+    # Retrieval fan-out at query time.
+    top_k: int = 5
+    # MMR (Maximal Marginal Relevance) re-ranking trades some similarity
+    # for diversity so the top-k is not three near-duplicate chunks.
+    use_mmr: bool = True
+    # Candidate pool size for MMR before re-ranking down to top_k.
+    mmr_fetch_k: int = 20
+    # Diversity / relevance knob in [0, 1]. 1.0 == pure similarity,
+    # 0.0 == maximise diversity only.
+    mmr_lambda: float = 0.5
+    # MCP sidecar that publishes the vector store as a tool.
+    mcp_server: McpServerConfig = McpServerConfig()
 
 
 class AppConfig(BaseModel):
