@@ -35,6 +35,14 @@ server:
   # CORS origins for the FastAPI app.
   cors_origins:
     - "*"
+  # Max seconds to wait for GET /health while FastAPI starts. RAG ingestion
+  # runs in the ASGI lifespan before the app serves; keep this >= worst-case
+  # ingestion time. Used by scripts/docker-entrypoint.sh; Dockerfile
+  # HEALTHCHECK start-period should match.
+  startup_health_wait_seconds: 300
+  # Docker HEALTHCHECK: seconds between probes after the start-period (steady
+  # state). The Dockerfile hardcodes this; override via rebuild or edit Dockerfile.
+  healthcheck_interval_seconds: 90
 
 ui:
   # The Streamlit process talks to the FastAPI server via this URL.

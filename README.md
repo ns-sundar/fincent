@@ -296,6 +296,17 @@ curl -s http://localhost:8000/rag/status | jq
    - `scripts/docker-entrypoint.sh` starts FastAPI first, waits until `GET /health` succeeds, then starts Streamlit so the UI never races the API.
    - `PYTHONPATH=/app` is set so `src.*` imports work without extra flags.
 
+   **Why `/health` can look “stuck” during first startup.** RAG ingestion runs inside the FastAPI **lifespan** hook *before* the ASGI app finishes startup. Until that completes, the server does not serve HTTP (including `GET /health`). So probes that expect a quick 200 from `/health` will fail or time out for as long as ingestion takes—not because `/health` is slow, but because **nothing is listening yet**. After ingestion finishes (or fails and the app still starts), `/health` responds normally.
+
+   **Startup vs steady-state timeouts** (see `config.yaml` → `server`):
+
+   | Setting | Default | Role |
+   |---------|---------|------|
+   | `startup_health_wait_seconds` | **300** (5 min) | Max time `docker-entrypoint.sh` polls `GET /health` before giving up. Must cover worst-case RAG ingestion. |
+   | `healthcheck_interval_seconds` | **90** | Docker `HEALTHCHECK` **interval** after the start period—how often the container probes `/health` in steady state. |
+
+   The Dockerfile `HEALTHCHECK` uses **`--start-period=300s`** (same 5 minutes as startup) so Docker does not mark the container unhealthy while ingestion is still running, then **`--interval=90s`** for ongoing checks. Override the entrypoint wait with **`FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS`** (Space variable or `docker run -e`).
+
 4. **Persistent state** — Spaces **mounts `/data`**; the image does **not** run `mkdir` for it. The app writes two things under `/data`:
    - **`/data/checkpoints.sqlite`** — LangGraph session checkpoints (`FINCENT__CHECKPOINTER__PATH` overrides).
    - **`/data/vector_db/`** — FAISS index built by the RAG ingestion pipeline at startup (`FINCENT__RAG__VECTOR_DB_PATH` overrides). The index is treated as static: once present, subsequent container restarts skip ingestion.

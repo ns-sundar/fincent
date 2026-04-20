@@ -55,8 +55,13 @@ EXPOSE 7860
 # Default UI→API URL (entrypoint overrides with 127.0.0.1 + $API_PORT)
 ENV FINCENT__UI__API_BASE_URL=http://127.0.0.1:8000
 
+# Match config.yaml server.startup_health_wait_seconds / healthcheck_interval_seconds.
+ENV FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS=300
+
 # Internal API port (must match API_PORT default).
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+# start-period: grace while RAG ingestion runs in FastAPI lifespan (no /health yet).
+# interval: steady-state probe spacing after start-period (90s).
+HEALTHCHECK --interval=90s --timeout=5s --start-period=300s --retries=3 \
     CMD curl -sf http://127.0.0.1:8000/health >/dev/null || exit 1
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]

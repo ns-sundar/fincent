@@ -26,6 +26,8 @@ def test_load_default_config(monkeypatch):
     assert cfg.rag.vector_db_path == "/data/vector_db"
     assert cfg.rag.chunk_size == 1000
     assert cfg.rag.chunk_overlap == 200
+    assert cfg.server.startup_health_wait_seconds == 300
+    assert cfg.server.healthcheck_interval_seconds == 90
 
 
 def test_env_var_overrides(monkeypatch, tmp_path: Path):

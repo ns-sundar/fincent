@@ -41,6 +41,10 @@ class ServerConfig(BaseModel):
     port: int = 8000
     graph_path: str = "/fincent"
     cors_origins: List[str] = Field(default_factory=lambda: ["*"])
+    # Container / HF Spaces: scripts/docker-entrypoint.sh and Dockerfile HEALTHCHECK
+    # should stay aligned with these values (see README).
+    startup_health_wait_seconds: int = 300
+    healthcheck_interval_seconds: int = 90
 
 
 class UIConfig(BaseModel):
