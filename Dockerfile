@@ -21,6 +21,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # curl: health checks in entrypoint; ca-certificates: HTTPS to OpenAI
+# Checkpoints use /data/checkpoints.sqlite; /data is provided by the host
+# (e.g. HuggingFace Spaces mount) — do not mkdir here.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*

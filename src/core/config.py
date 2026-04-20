@@ -76,6 +76,15 @@ class LoggingConfig(BaseModel):
     file: Optional[str] = None
 
 
+class CheckpointerConfig(BaseModel):
+    """Settings for the LangGraph checkpointer."""
+
+    backend: str = "sqlite"
+    # Absolute path (e.g. /data/... on disk root), never ./data in the repo.
+    # Or ":memory:" for tests.
+    path: str = "/data/checkpoints.sqlite"
+
+
 class AppConfig(BaseModel):
     """Top-level configuration object."""
 
@@ -84,6 +93,7 @@ class AppConfig(BaseModel):
     server: ServerConfig = ServerConfig()
     ui: UIConfig = UIConfig()
     agents: AgentsConfig = AgentsConfig()
+    checkpointer: CheckpointerConfig = CheckpointerConfig()
     logging: LoggingConfig = LoggingConfig()
 
 

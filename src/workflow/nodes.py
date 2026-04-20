@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Dict, List
 
+from langchain_core.messages import AIMessage
+
 from src.agents import agent_four, agent_three, agent_two, qna
 from src.agents.central import aggregate, answer_directly, plan_route
 from src.core.schemas import AgentName, AgentResponse, Intent
@@ -45,7 +47,13 @@ SPECIALIST_NODE_FOR: Dict[Intent, str] = {
 
 
 def planner_node(state: GraphState) -> GraphState:
-    """Run the central planner and store the resulting ``RoutingPlan``."""
+    """Run the central planner and store the resulting ``RoutingPlan``.
+
+    Also resets ``agent_responses`` to ``[]`` at the start of a turn
+    (the custom reducer treats ``None`` as a reset signal) so that
+    responses recovered from a SQLite checkpoint do not leak into the
+    current turn.
+    """
     query = state["query"]
     plan = plan_route(query)
     _logger.info(
@@ -53,7 +61,7 @@ def planner_node(state: GraphState) -> GraphState:
         plan.handled_by_central,
         [i.value for i in plan.intents],
     )
-    return {"plan": plan}
+    return {"plan": plan, "agent_responses": None}
 
 
 def central_direct_node(state: GraphState) -> GraphState:
@@ -93,8 +101,15 @@ agent_four_node = _make_specialist_node(Intent.AGENT_FOUR)
 
 
 def aggregator_node(state: GraphState) -> GraphState:
-    """Combine collected specialist responses into a final answer."""
+    """Combine collected specialist responses into a final answer.
+
+    Also appends the final answer as an ``AIMessage`` to the running
+    ``messages`` transcript so the checkpointer can rehydrate the UI.
+    """
     query = state["query"]
     responses: List[AgentResponse] = list(state.get("agent_responses") or [])
     final = aggregate(query, responses)
-    return {"final_answer": final}
+    return {
+        "final_answer": final,
+        "messages": [AIMessage(content=final)],
+    }

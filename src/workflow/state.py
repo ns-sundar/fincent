@@ -2,23 +2,50 @@
 
 from __future__ import annotations
 
-import operator
 from typing import Annotated, List, Optional, TypedDict
 
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
+
 from src.core.schemas import AgentResponse, RoutingPlan
+
+
+def _reset_or_extend(
+    existing: Optional[List[AgentResponse]],
+    new: Optional[List[AgentResponse]],
+) -> List[AgentResponse]:
+    """Custom reducer for ``agent_responses``.
+
+    * ``None`` from a node resets the list to ``[]`` -- this is how the
+      planner clears responses from previous turns that a SQLite
+      checkpoint may have restored.
+    * A list from a node is appended (so parallel specialists can each
+      add their own reply without overwriting peers).
+    """
+    if new is None:
+        return []
+    return list(existing or []) + list(new)
 
 
 class GraphState(TypedDict, total=False):
     """Mutable state passed between LangGraph nodes.
 
-    Notes:
-        ``agent_responses`` is annotated with ``operator.add`` so that
-        multiple specialist nodes running in parallel can each append
-        their reply without overwriting peers.
+    Fields:
+        query:           Latest user query (overwritten each turn).
+        messages:        Full conversation transcript, persisted across
+                         turns via the checkpointer. Uses LangGraph's
+                         ``add_messages`` reducer.
+        plan:            Current turn's routing plan (overwritten).
+        agent_responses: Responses produced by agents during the
+                         current turn. Uses ``_reset_or_extend`` so the
+                         planner can clear stale checkpoint data.
+        final_answer:    Final user-facing answer for the current turn.
+        session_id:      Opaque thread identifier (informational).
     """
 
     query: str
+    messages: Annotated[List[BaseMessage], add_messages]
     plan: Optional[RoutingPlan]
-    agent_responses: Annotated[List[AgentResponse], operator.add]
+    agent_responses: Annotated[List[AgentResponse], _reset_or_extend]
     final_answer: Optional[str]
     session_id: Optional[str]

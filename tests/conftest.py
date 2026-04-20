@@ -17,6 +17,10 @@ if str(PROJECT_ROOT) not in sys.path:
 # real-LLM construction; tests should always inject fake LLMs.
 os.environ.setdefault("OPENAI_API_KEY", "test-key-not-real")
 
+# Default production path is /data/checkpoints.sqlite (outside the repo).
+# Tests must not require that directory; use an in-memory SQLite DB.
+os.environ.setdefault("FINCENT__CHECKPOINTER__PATH", ":memory:")
+
 
 @pytest.fixture(autouse=True)
 def _reset_config_cache():

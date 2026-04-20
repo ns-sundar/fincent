@@ -8,14 +8,19 @@ from pathlib import Path
 from src.core.config import AppConfig, load_config
 
 
-def test_load_default_config():
+def test_load_default_config(monkeypatch):
     """The bundled config.yaml should parse cleanly into AppConfig."""
+    monkeypatch.delenv("FINCENT__CHECKPOINTER__PATH", raising=False)
+    from src.core.config import reset_config_cache
+
+    reset_config_cache()
     cfg = load_config()
     assert isinstance(cfg, AppConfig)
     assert cfg.app.name == "Fincent"
     assert cfg.llm.provider == "openai"
     assert cfg.agents.qna.enabled is True
     assert cfg.agents.agent_two.enabled is False
+    assert cfg.checkpointer.path == "/data/checkpoints.sqlite"
 
 
 def test_env_var_overrides(monkeypatch, tmp_path: Path):

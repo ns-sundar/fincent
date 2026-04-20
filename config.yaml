@@ -66,6 +66,17 @@ agents:
     enabled: false
     description: "Reserved placeholder for a future specialist agent."
 
+checkpointer:
+  # LangGraph persists the per-thread state (messages, plan, etc.) so
+  # that Streamlit can rehydrate on reload. Only the sqlite backend is
+  # wired today. Use ":memory:" for ephemeral storage (tests, CI).
+  #
+  # Absolute path: filesystem root ``/data``, NOT ``./data`` in the repo.
+  # HF Spaces mounts ``/data``; local env should provide it or override
+  # via FINCENT__CHECKPOINTER__PATH.
+  backend: "sqlite"
+  path: "/data/checkpoints.sqlite"
+
 logging:
   level: "INFO"
   # Optional path; leave empty to log only to stderr.

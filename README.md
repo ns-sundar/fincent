@@ -59,6 +59,40 @@ The central agent has three responsibilities:
 LangGraph's `Send` API is used to fan out to multiple specialist
 nodes when the planner picks more than one.
 
+### Session persistence
+
+**Checkpoint location:** **`/data/`** means the directory at the **root of
+the filesystem** (absolute path: leading `/`). It is **not** a relative
+path `./data` beside the clone, and **not** the Python package folder
+`src/data/` in this repo.
+
+Conversation state is persisted with a **LangGraph SQLite
+`SqliteSaver` checkpointer** at **`/data/checkpoints.sqlite`** by default
+(a host-level directory **outside the git repository** — not under
+`fincent/`). **HuggingFace Spaces** mounts **`/data`** for the Space; your
+**local** environment should expose the same path if you use the default
+(check with your setup). The **Dockerfile does not create `/data`**. Override
+the path with `checkpointer.path` in `config.yaml` or
+`FINCENT__CHECKPOINTER__PATH` when needed.
+
+Each Streamlit
+visitor maps to a LangGraph **`thread_id`**, sourced from the URL
+query parameter `?session_id=<id>` (falling back to
+`default-session`). Every call to `POST /query` and every LangServe
+invocation must include the thread id via:
+
+```json
+{"configurable": {"thread_id": "<session_id>"}}
+```
+
+On a reload or HuggingFace tab switch, the Streamlit UI calls
+`GET /history/{thread_id}` to rebuild the chat from the checkpoint
+(mapping LangGraph roles `human` / `ai` to Streamlit's
+`user` / `assistant`). The **Clear conversation** button first POSTs
+to `/reset/{thread_id}` — the backend uses
+`graph.update_state(..., {"messages": [RemoveMessage(id=...), ...]})`,
+so prior versions remain in the SQLite checkpoint log.
+
 ---
 
 ## Repository layout
@@ -73,7 +107,7 @@ fincent/
       agent_three/  # Reserved
       agent_four/   # Reserved
     core/           # Config, LLM factory, shared schemas
-    data/           # Local datasets / sample documents
+    data/           # Python pkg ``src.data`` — NOT the same as ``/data`` for SQLite
     rag/            # Retrieval utilities (placeholder)
     web_app/        # Streamlit UI + API client
     utils/          # Logging, helpers
@@ -99,6 +133,7 @@ for example:
 ```bash
 export FINCENT__LLM__MODEL=gpt-4o-mini
 export FINCENT__SERVER__PORT=8000
+export FINCENT__CHECKPOINTER__PATH=/data/checkpoints.sqlite
 ```
 
 The only **required** environment variable is:
@@ -117,6 +152,7 @@ A template lives in `.env.example`.
 |---|---|
 | Python 3.11+ | |
 | `OPENAI_API_KEY` | Required at runtime |
+| Host directory `/data` | Default checkpoint DB: `/data/checkpoints.sqlite`. HF Spaces mounts `/data`; locally it should exist per your setup, or set `FINCENT__CHECKPOINTER__PATH` to a writable file. |
 | `jq` *(optional)* | Pretty-prints API responses in the terminal: `sudo apt-get install jq` |
 
 ---
@@ -137,23 +173,28 @@ This starts:
 
 - FastAPI / LangServe on `http://localhost:8000`
   - `GET  /health`
-  - `POST /query`            (typed JSON I/O for the UI)
-  - `POST /fincent/invoke`   (raw LangServe endpoint for the graph)
+  - `POST /query`                 (typed JSON I/O for the UI; carries `session_id`)
+  - `GET  /history/{thread_id}`   (rehydrates the UI on reload — see below)
+  - `POST /reset/{thread_id}`     (clears the current conversation)
+  - `POST /fincent/invoke`        (raw LangServe endpoint for the graph)
   - `POST /fincent/stream`
 - Streamlit UI on `http://localhost:8501`
+  - Open `http://localhost:8501/?session_id=alice` to pin a named thread.
+  - With no query param, the UI falls back to `session_id=default-session`.
 
 Send a quick test:
 
 ```bash
-# With jq installed (pretty output)
+# Ask a question (thread = "demo")
 curl -s http://localhost:8000/query \
   -H 'Content-Type: application/json' \
-  -d '{"query": "What is an ETF?"}' | jq
+  -d '{"query": "What is an ETF?", "session_id": "demo"}' | jq
 
-# Without jq
-curl -s http://localhost:8000/query \
-  -H 'Content-Type: application/json' \
-  -d '{"query": "What is an ETF?"}'
+# Fetch the full transcript back
+curl -s http://localhost:8000/history/demo | jq
+
+# Clear the current conversation for that thread
+curl -s -X POST http://localhost:8000/reset/demo | jq
 ```
 
 ---
@@ -174,12 +215,14 @@ curl -s http://localhost:8000/query \
    - `scripts/docker-entrypoint.sh` starts FastAPI first, waits until `GET /health` succeeds, then starts Streamlit so the UI never races the API.
    - `PYTHONPATH=/app` is set so `src.*` imports work without extra flags.
 
-4. **Optional overrides** (Space **Settings → Variables**):
+4. **Checkpoints** — Spaces **mounts `/data`**; the image does **not** run `mkdir` for it. LangGraph writes **`/data/checkpoints.sqlite`** by default. Override with `FINCENT__CHECKPOINTER__PATH` if your deployment uses a different path.
+
+5. **Optional overrides** (Space **Settings → Variables**):
    - `API_PORT` — change internal API port (default `8000`). If you change it, you must keep it in sync with `FINCENT__UI__API_BASE_URL` or use `FINCENT__UI__API_BASE_URL=http://127.0.0.1:<API_PORT>`.
 
-5. **Build** — First build may take several minutes (`pip install`). If the Space shows a build error, open the **Logs** tab for the full trace.
+6. **Build** — First build may take several minutes (`pip install`). If the Space shows a build error, open the **Logs** tab for the full trace.
 
-6. **Local test with Docker** (optional):
+7. **Local test with Docker** (optional):
 
    ```bash
    docker build -t fincent .
