@@ -85,6 +85,28 @@ class CheckpointerConfig(BaseModel):
     path: str = "/data/checkpoints.sqlite"
 
 
+class RagConfig(BaseModel):
+    """Settings for Retrieval-Augmented Generation (Q&A agent).
+
+    See ``config.yaml`` for the narrative description of each field.
+    """
+
+    enabled: bool = True
+    articles_path: str = "rag/fincent_rag_articles.json"
+    # Absolute path: host provides /data (HF Spaces mount / local sudo mkdir).
+    vector_db_path: str = "/data/vector_db"
+    embedding_model: str = "text-embedding-3-small"
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    request_timeout: int = 60
+    # Realistic Chrome UA -- many gov / finance sites 403 non-browser UAs.
+    user_agent: str = (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+    top_k: int = 4
+
+
 class AppConfig(BaseModel):
     """Top-level configuration object."""
 
@@ -94,6 +116,7 @@ class AppConfig(BaseModel):
     ui: UIConfig = UIConfig()
     agents: AgentsConfig = AgentsConfig()
     checkpointer: CheckpointerConfig = CheckpointerConfig()
+    rag: RagConfig = RagConfig()
     logging: LoggingConfig = LoggingConfig()
 
 

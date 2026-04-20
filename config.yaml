@@ -66,6 +66,40 @@ agents:
     enabled: false
     description: "Reserved placeholder for a future specialist agent."
 
+rag:
+  # Retrieval-Augmented Generation for the Q&A agent.
+  #
+  # Ingestion runs inside the FastAPI lifespan (startup). FastAPI does
+  # not begin serving requests until ingestion either (a) completes
+  # successfully, or (b) fails -- in which case the API still starts
+  # but /rag/status reports the failure and the Streamlit UI renders
+  # a banner while still accepting queries.
+  enabled: true
+  # JSON catalog of documents to ingest. Path is relative to the
+  # project root. Schema: [{"url": str, "title": str,
+  # "tags": {"source": str, "category": [str, ...]}}, ...]
+  articles_path: "rag/fincent_rag_articles.json"
+  # Absolute path on the host filesystem; HF Spaces mounts /data, and
+  # locally you must provide /data (or override via
+  # FINCENT__RAG__VECTOR_DB_PATH). If an index exists here, ingestion
+  # is skipped (the catalog is assumed static).
+  vector_db_path: "/data/vector_db"
+  # Embedding model for both ingestion and query-time retrieval.
+  embedding_model: "text-embedding-3-small"
+  # Recursive character chunker calibrated on the cl100k_base tokenizer.
+  chunk_size: 1000
+  chunk_overlap: 200
+  # HTTP client settings for downloading source documents.
+  request_timeout: 60
+  # Many gov / finance sites (investor.gov, cbp.gov, usitc.gov,
+  # investopedia.com, finra.org ...) block non-browser User-Agents
+  # with a 403. We default to a realistic Chrome UA; the loader
+  # additionally sends browser-class Accept / Accept-Language /
+  # Sec-Fetch-* / Referer headers and retries once on 403/429/5xx.
+  user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+  # Retrieval fan-out at query time.
+  top_k: 4
+
 checkpointer:
   # LangGraph persists the per-thread state (messages, plan, etc.) so
   # that Streamlit can rehydrate on reload. Only the sqlite backend is

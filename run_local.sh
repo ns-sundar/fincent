@@ -3,7 +3,9 @@
 # Starts the FastAPI server and the Streamlit UI as two processes.
 #
 # LangGraph checkpoints default to /data/checkpoints.sqlite (outside this repo).
-# /data must exist on the host (e.g. HF mount) or set FINCENT__CHECKPOINTER__PATH.
+# RAG FAISS index defaults to /data/vector_db/ (also outside this repo).
+# /data must exist on the host (e.g. HF mount) or override via
+#   FINCENT__CHECKPOINTER__PATH and FINCENT__RAG__VECTOR_DB_PATH.
 set -euo pipefail
 
 cd "$(dirname "$0")"

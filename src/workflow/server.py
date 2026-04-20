@@ -2,6 +2,9 @@
 
 Endpoints:
     GET  /health                  -> liveness probe.
+    GET  /rag/status              -> snapshot of the RAG ingestion
+                                     pipeline state (see
+                                     ``src.rag.status``).
     POST /query                   -> typed convenience endpoint
                                      returning ``QueryResponse`` (uses
                                      the checkpointed graph).
@@ -15,11 +18,19 @@ Endpoints:
                                      previous checkpoints.
     *    {graph_path}/...         -> LangServe routes (invoke, stream,
                                      etc.) for the raw graph runnable.
+
+Startup behaviour:
+    The application uses FastAPI's ``lifespan`` context manager to run
+    the RAG ingestion pipeline *before* FastAPI begins serving. When
+    ingestion fails the app still starts; ``/rag/status`` reports the
+    failure and the Streamlit UI surfaces a banner while still
+    accepting queries.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +38,9 @@ from pydantic import BaseModel, Field
 
 from src.core.config import AppConfig, get_config
 from src.core.schemas import QueryRequest, QueryResponse
+from src.rag import status as rag_status_mod
+from src.rag.ingest import ingest_if_needed
+from src.rag.retriever import reset_default_retriever
 from src.utils.logging import configure_logging, get_logger
 from src.workflow.graph import (
     default_graph,
@@ -39,7 +53,7 @@ _logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------
-# Response envelopes for the history / reset endpoints
+# Response envelopes
 # ---------------------------------------------------------------------
 
 
@@ -64,6 +78,59 @@ class ResetResponse(BaseModel):
     removed: int
 
 
+class RagStatusResponse(BaseModel):
+    """Response envelope for ``GET /rag/status``."""
+
+    state: str = Field(
+        ...,
+        description=(
+            "One of: pending, ingesting, ready, skipped, disabled, failed."
+        ),
+    )
+    detail: str = ""
+    error: Optional[str] = None
+    chunk_count: int = 0
+    ingested_articles: int = 0
+    meta: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------
+# Lifespan: run RAG ingestion before serving
+# ---------------------------------------------------------------------
+
+
+def _build_lifespan(cfg: AppConfig):
+    """Return a lifespan context manager bound to a specific config."""
+
+    @asynccontextmanager
+    async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+        _logger.info("RAG lifespan: starting ingestion (enabled=%s)", cfg.rag.enabled)
+        try:
+            # ingest_if_needed is synchronous + potentially long-running
+            # (network + embeddings). That is intentional: FastAPI must
+            # not start serving until it resolves one way or another.
+            snapshot = ingest_if_needed(cfg)
+        except Exception as exc:  # noqa: BLE001 -- never block startup
+            _logger.exception("Unexpected ingestion failure at startup")
+            snapshot = rag_status_mod.set_status(
+                state=rag_status_mod.STATE_FAILED,
+                detail="Unexpected ingestion failure.",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        _logger.info(
+            "RAG lifespan: ingestion finished (state=%s, detail=%s)",
+            snapshot.state,
+            snapshot.detail,
+        )
+        # Force the retriever cache to re-open the freshly built index
+        # on its next use.
+        reset_default_retriever()
+        yield
+        # No explicit shutdown work for RAG today.
+
+    return _lifespan
+
+
 # ---------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------
@@ -78,6 +145,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         title=cfg.app.name,
         version=cfg.app.version,
         description=cfg.app.description,
+        lifespan=_build_lifespan(cfg),
     )
     app.add_middleware(
         CORSMiddleware,
@@ -87,7 +155,6 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Compile-and-cache the checkpointed graph once (lru_cache inside).
     graph = default_graph()
 
     # ---- Plain endpoints ---------------------------------------------------
@@ -100,6 +167,19 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             "app": cfg.app.name,
             "version": cfg.app.version,
         }
+
+    @app.get("/rag/status", response_model=RagStatusResponse)
+    def rag_status() -> RagStatusResponse:
+        """Expose the RAG ingestion pipeline state."""
+        snap = rag_status_mod.get_status()
+        return RagStatusResponse(
+            state=snap.state,
+            detail=snap.detail,
+            error=snap.error,
+            chunk_count=snap.chunk_count,
+            ingested_articles=snap.ingested_articles,
+            meta=snap.meta,
+        )
 
     @app.post("/query", response_model=QueryResponse)
     def query(request: QueryRequest) -> QueryResponse:
@@ -116,12 +196,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
 
     @app.get("/history/{thread_id}", response_model=HistoryResponse)
     def history(thread_id: str) -> HistoryResponse:
-        """Return the chat transcript for a thread.
-
-        An empty list is returned for unknown or brand-new threads (it
-        is not an error). Roles are reported in LangGraph's vocabulary
-        (``human`` / ``ai``) -- the client converts to its own.
-        """
+        """Return the chat transcript for a thread."""
         try:
             raw = get_history(thread_id, graph=graph)
         except Exception as exc:  # noqa: BLE001 -- surface as 500
@@ -134,12 +209,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
 
     @app.post("/reset/{thread_id}", response_model=ResetResponse)
     def reset(thread_id: str) -> ResetResponse:
-        """Clear the current message list for a thread.
-
-        Delegates to ``graph.update_state`` with ``RemoveMessage``
-        entries so the SQLite checkpoint log still retains the prior
-        transcript versions.
-        """
+        """Clear the current message list for a thread."""
         try:
             removed = reset_thread(thread_id, graph=graph)
         except Exception as exc:  # noqa: BLE001 -- surface as 500
@@ -148,9 +218,6 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         return ResetResponse(thread_id=thread_id, removed=removed)
 
     # ---- LangServe routes --------------------------------------------------
-    #
-    # Registered lazily so the module remains importable even if
-    # langserve is missing in some thin testing environment.
     try:
         from langserve import add_routes
 

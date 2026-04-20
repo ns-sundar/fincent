@@ -1,7 +1,9 @@
 # --- LLM + orchestration ---
 langchain>=0.3.0
 langchain-core>=0.3.0
+langchain-community>=0.3.0
 langchain-openai>=0.2.0
+langchain-text-splitters>=0.3.0
 langgraph>=0.2.40
 langgraph-checkpoint-sqlite>=2.0.0
 langserve[server]>=0.3.0
@@ -14,6 +16,18 @@ sse-starlette>=1.3.0,<2.0.0
 # --- UI (separate process) ---
 streamlit>=1.38.0
 requests>=2.32.0
+
+# --- RAG (Q&A agent) ---
+# FAISS CPU-only vector store -- persisted at /data/vector_db.
+faiss-cpu>=1.8.0
+# Document parsing: BeautifulSoup for HTML, unstructured for PDF.
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+unstructured[pdf]>=0.15.0
+# Fallback PDF parser when unstructured cannot handle a file.
+pypdf>=4.0.0
+# Token-aware recursive chunking (~1000 tokens, 200 overlap).
+tiktoken>=0.7.0
 
 # --- Config / data ---
 pydantic>=2.7.0

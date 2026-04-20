@@ -21,12 +21,23 @@ os.environ.setdefault("OPENAI_API_KEY", "test-key-not-real")
 # Tests must not require that directory; use an in-memory SQLite DB.
 os.environ.setdefault("FINCENT__CHECKPOINTER__PATH", ":memory:")
 
+# RAG ingestion hits the network + OpenAI embeddings. Unit tests must
+# never run it as a side effect of importing the FastAPI app; specific
+# RAG tests re-enable it explicitly.
+os.environ.setdefault("FINCENT__RAG__ENABLED", "false")
+
 
 @pytest.fixture(autouse=True)
 def _reset_config_cache():
     """Reset cached config between tests so env overrides take effect."""
     from src.core.config import reset_config_cache
+    from src.rag.retriever import reset_default_retriever
+    from src.rag.status import reset_status
 
     reset_config_cache()
+    reset_default_retriever()
+    reset_status()
     yield
     reset_config_cache()
+    reset_default_retriever()
+    reset_status()

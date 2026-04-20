@@ -20,11 +20,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# curl: health checks in entrypoint; ca-certificates: HTTPS to OpenAI
-# Checkpoints use /data/checkpoints.sqlite; /data is provided by the host
-# (e.g. HuggingFace Spaces mount) — do not mkdir here.
+# System packages:
+#   curl, ca-certificates  -- entrypoint health check + HTTPS to OpenAI
+#   poppler-utils, tesseract-ocr, libmagic1  -- unstructured.io PDF parsing
+#                                              (for RAG ingestion at startup)
+# Persistent state uses /data/checkpoints.sqlite and /data/vector_db; /data
+# is provided by the host (e.g. HuggingFace Spaces mount) -- do not mkdir here.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        poppler-utils \
+        tesseract-ocr \
+        libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first to maximise layer caching.

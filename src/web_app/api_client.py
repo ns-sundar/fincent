@@ -126,3 +126,30 @@ def health(base_url: str, *, timeout: int = 5) -> bool:
         return resp.status_code == 200
     except requests.RequestException:
         return False
+
+
+def rag_status(
+    base_url: str, *, timeout: int = 5
+) -> Dict[str, object]:
+    """Fetch the RAG ingestion status from the backend.
+
+    Returns:
+        A dict with at least a ``state`` key. When the backend is
+        unreachable or responds with an error, the dict is a synthetic
+        ``{"state": "unknown", "detail": <reason>}`` payload so the UI
+        can render a neutral banner rather than crashing.
+    """
+    url = _url(base_url, "/rag/status")
+    try:
+        resp = requests.get(url, timeout=timeout)
+    except requests.RequestException as exc:
+        return {"state": "unknown", "detail": f"Could not reach {url}: {exc}"}
+    if resp.status_code >= 400:
+        return {
+            "state": "unknown",
+            "detail": f"HTTP {resp.status_code} from {url}",
+        }
+    try:
+        return dict(resp.json() or {})
+    except ValueError:
+        return {"state": "unknown", "detail": "Malformed JSON from /rag/status"}

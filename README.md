@@ -15,8 +15,9 @@ via **LangServe + FastAPI**, with a **Streamlit** UI running as a
 separate process.
 
 > Status: initial scaffold. The central orchestrator is fully wired;
-> the Q&A agent is a working skeleton; three additional specialist
-> agents are stubbed for future iterations.
+> the Q&A agent is RAG-enabled (FAISS + LangChain ingestion of the
+> curated catalog at `rag/fincent_rag_articles.json`); three additional
+> specialist agents are stubbed for future iterations.
 
 ---
 
@@ -93,6 +94,67 @@ to `/reset/{thread_id}` — the backend uses
 `graph.update_state(..., {"messages": [RemoveMessage(id=...), ...]})`,
 so prior versions remain in the SQLite checkpoint log.
 
+### RAG (Q&A agent)
+
+The Q&A agent is backed by a **FAISS** vector index built from the
+curated catalog at [`rag/fincent_rag_articles.json`](rag/fincent_rag_articles.json)
+(IRS / SEC / FINRA / Federal Reserve / CBP / USITC … 50+ URLs to
+authoritative PDFs and HTML pages). The ingestion pipeline is a
+standard LangChain RAG stack:
+
+1. **Load** each URL:
+   - PDFs are downloaded and parsed by **`UnstructuredPDFLoader`**
+     (unstructured.io); if unstructured's system dependencies are
+     missing, `PyPDFLoader` is used as a transparent fallback.
+   - HTML pages are parsed by LangChain's **`BSHTMLLoader`**
+     (BeautifulSoup + lxml).
+2. **Stamp metadata**: every `Document` gets `url`, `title`, `tags`,
+   and `source` attached — these travel through chunking and land on
+   every vector in FAISS, so retrieved hits can be cited.
+3. **Chunk** with `RecursiveCharacterTextSplitter.from_tiktoken_encoder`,
+   **chunk size ≈ 1000 tokens, overlap 200**. The overlap keeps
+   definitions next to their examples.
+4. **Embed** with `OpenAIEmbeddings` (default model:
+   `text-embedding-3-small`; override via
+   `FINCENT__RAG__EMBEDDING_MODEL`).
+5. **Persist** the FAISS index at **`/data/vector_db`** (same absolute
+   `/data` mount as the SQLite checkpoint — provided by the host /
+   the HF Space).
+
+**Idempotent / skip-if-present.** The corpus is treated as **static**:
+if `index.faiss` + `index.pkl` already exist at
+`/data/vector_db`, ingestion is skipped on the next startup and the
+retriever loads the existing index.
+
+**Startup integration.** Ingestion runs inside the FastAPI
+**`lifespan`** context manager. FastAPI does **not** begin serving
+HTTP until ingestion finishes, so the Q&A agent never starts
+answering with a half-built index. If ingestion **fails**, the app
+still starts; `GET /rag/status` reports `{"state": "failed", ...}`
+and the Streamlit UI renders an error banner above the chat while
+still accepting queries (the agent degrades to plain LLM answers).
+
+**Status endpoint.** Clients (including the Streamlit UI) poll
+`GET /rag/status`; the response shape is:
+
+```json
+{
+  "state": "ready | pending | ingesting | skipped | disabled | failed",
+  "detail": "42 chunk(s) from 58/59 article(s) in 83.4s",
+  "error": null,
+  "chunk_count": 42,
+  "ingested_articles": 58,
+  "meta": {"vector_db_path": "/data/vector_db", "failures": [...]}
+}
+```
+
+**Retrieval at query time.** When the Q&A agent receives a query it
+calls the cached retriever (FAISS similarity search with `top_k=4`
+by default) and prepends a `<context>` block containing the top
+chunks to the system prompt. Source URLs are included so the LLM can
+cite inline, and the returned `AgentResponse.metadata.sources` lists
+the hits for the UI's routing-details expander.
+
 ---
 
 ## Repository layout
@@ -107,12 +169,13 @@ fincent/
       agent_three/  # Reserved
       agent_four/   # Reserved
     core/           # Config, LLM factory, shared schemas
-    data/           # Python pkg ``src.data`` — NOT the same as ``/data`` for SQLite
-    rag/            # Retrieval utilities (placeholder)
+    data/           # Python pkg ``src.data`` — NOT the same as ``/data`` on disk
+    rag/            # RAG: loaders, ingestion, FAISS retriever, status singleton
     web_app/        # Streamlit UI + API client
     utils/          # Logging, helpers
     workflow/       # LangGraph state, nodes, graph, FastAPI server
   tests/            # pytest unit tests
+  rag/              # fincent_rag_articles.json (source catalog; NOT the index)
   config.yaml       # Application configuration
   requirements.txt
   Dockerfile        # HuggingFace Spaces (Docker SDK) compatible
@@ -134,6 +197,14 @@ for example:
 export FINCENT__LLM__MODEL=gpt-4o-mini
 export FINCENT__SERVER__PORT=8000
 export FINCENT__CHECKPOINTER__PATH=/data/checkpoints.sqlite
+
+# RAG (Q&A agent)
+export FINCENT__RAG__ENABLED=true
+export FINCENT__RAG__VECTOR_DB_PATH=/data/vector_db
+export FINCENT__RAG__EMBEDDING_MODEL=text-embedding-3-small
+export FINCENT__RAG__CHUNK_SIZE=1000
+export FINCENT__RAG__CHUNK_OVERLAP=200
+export FINCENT__RAG__TOP_K=4
 ```
 
 The only **required** environment variable is:
@@ -151,8 +222,9 @@ A template lives in `.env.example`.
 | Requirement | Notes |
 |---|---|
 | Python 3.11+ | |
-| `OPENAI_API_KEY` | Required at runtime |
-| Host directory `/data` | Default checkpoint DB: `/data/checkpoints.sqlite`. HF Spaces mounts `/data`; locally it should exist per your setup, or set `FINCENT__CHECKPOINTER__PATH` to a writable file. |
+| `OPENAI_API_KEY` | Required at runtime (chat model **and** embeddings). |
+| Host directory `/data` | Defaults: `/data/checkpoints.sqlite` (session checkpointer) and `/data/vector_db/` (FAISS index). HF Spaces mounts `/data`; locally it should exist per your setup, or set `FINCENT__CHECKPOINTER__PATH` / `FINCENT__RAG__VECTOR_DB_PATH` to writable locations. |
+| System libs for PDF parsing | Needed only if you want `UnstructuredPDFLoader` during ingestion. On Ubuntu: `sudo apt-get install poppler-utils tesseract-ocr libmagic1`. Without them, ingestion transparently falls back to `PyPDFLoader`. |
 | `jq` *(optional)* | Pretty-prints API responses in the terminal: `sudo apt-get install jq` |
 
 ---
@@ -173,6 +245,7 @@ This starts:
 
 - FastAPI / LangServe on `http://localhost:8000`
   - `GET  /health`
+  - `GET  /rag/status`            (RAG ingestion pipeline state — see below)
   - `POST /query`                 (typed JSON I/O for the UI; carries `session_id`)
   - `GET  /history/{thread_id}`   (rehydrates the UI on reload — see below)
   - `POST /reset/{thread_id}`     (clears the current conversation)
@@ -195,7 +268,15 @@ curl -s http://localhost:8000/history/demo | jq
 
 # Clear the current conversation for that thread
 curl -s -X POST http://localhost:8000/reset/demo | jq
+
+# Check the RAG ingestion status (state, counts, any failures)
+curl -s http://localhost:8000/rag/status | jq
 ```
+
+> **First startup note.** With RAG enabled and no existing index at
+> `/data/vector_db`, the first run will download and embed the full
+> catalog (50+ URLs). Expect a few minutes and some OpenAI embedding
+> cost. Subsequent runs find the index on disk and skip ingestion.
 
 ---
 
@@ -215,7 +296,9 @@ curl -s -X POST http://localhost:8000/reset/demo | jq
    - `scripts/docker-entrypoint.sh` starts FastAPI first, waits until `GET /health` succeeds, then starts Streamlit so the UI never races the API.
    - `PYTHONPATH=/app` is set so `src.*` imports work without extra flags.
 
-4. **Checkpoints** — Spaces **mounts `/data`**; the image does **not** run `mkdir` for it. LangGraph writes **`/data/checkpoints.sqlite`** by default. Override with `FINCENT__CHECKPOINTER__PATH` if your deployment uses a different path.
+4. **Persistent state** — Spaces **mounts `/data`**; the image does **not** run `mkdir` for it. The app writes two things under `/data`:
+   - **`/data/checkpoints.sqlite`** — LangGraph session checkpoints (`FINCENT__CHECKPOINTER__PATH` overrides).
+   - **`/data/vector_db/`** — FAISS index built by the RAG ingestion pipeline at startup (`FINCENT__RAG__VECTOR_DB_PATH` overrides). The index is treated as static: once present, subsequent container restarts skip ingestion.
 
 5. **Optional overrides** (Space **Settings → Variables**):
    - `API_PORT` — change internal API port (default `8000`). If you change it, you must keep it in sync with `FINCENT__UI__API_BASE_URL` or use `FINCENT__UI__API_BASE_URL=http://127.0.0.1:<API_PORT>`.

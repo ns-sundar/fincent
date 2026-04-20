@@ -36,6 +36,7 @@ from src.web_app.api_client import (
     get_history,
     health,
     query_fincent,
+    rag_status,
     reset_thread,
 )
 
@@ -122,6 +123,42 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         )
 
 
+def _render_rag_banner(api_base_url: str) -> None:
+    """Surface RAG ingestion failures without blocking the chat UI.
+
+    * ``ready`` / ``skipped`` / ``disabled`` -> silent (no banner).
+    * ``ingesting`` / ``pending``            -> informational banner.
+    * ``failed`` / ``unknown``               -> error banner; chat
+                                                 still accepts input.
+    """
+    status = rag_status(api_base_url)
+    state = str(status.get("state", "unknown")).lower()
+    detail = str(status.get("detail") or "")
+    error = str(status.get("error") or "")
+
+    if state in {"ready", "skipped", "disabled"}:
+        return
+
+    if state in {"pending", "ingesting"}:
+        st.info(
+            f"Knowledge base ingestion is in progress ({state}). "
+            "Answers may be less grounded until it completes."
+            + (f"\n\n{detail}" if detail else "")
+        )
+        return
+
+    # failed / unknown
+    msg = (
+        "Knowledge base is unavailable; answers will fall back to the "
+        "model's general knowledge without retrieval context."
+    )
+    if detail:
+        msg += f"\n\nDetails: {detail}"
+    if error:
+        msg += f"\n\nError: {error}"
+    st.error(msg)
+
+
 def _render_history() -> None:
     """Replay previous chat turns."""
     for turn in st.session_state.get("history", []):
@@ -162,6 +199,8 @@ def main() -> None:
     subtitle = (cfg.app.description or "").strip()
     if subtitle:
         st.caption(subtitle)
+
+    _render_rag_banner(api_base_url)
 
     _render_history()
 

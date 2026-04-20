@@ -72,6 +72,14 @@ dmypy.json
 .env.*
 !.env.example
 
+# RAG runtime artefacts — the production paths live at /data (outside
+# the repo), but block in-repo copies in case someone overrides the
+# path to a relative location during development.
+data/
+vector_db/
+*.faiss
+*.faiss.*
+
 # OS
 .DS_Store
 Thumbs.db

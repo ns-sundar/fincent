@@ -11,6 +11,7 @@ from src.core.config import AppConfig, load_config
 def test_load_default_config(monkeypatch):
     """The bundled config.yaml should parse cleanly into AppConfig."""
     monkeypatch.delenv("FINCENT__CHECKPOINTER__PATH", raising=False)
+    monkeypatch.delenv("FINCENT__RAG__ENABLED", raising=False)
     from src.core.config import reset_config_cache
 
     reset_config_cache()
@@ -21,6 +22,10 @@ def test_load_default_config(monkeypatch):
     assert cfg.agents.qna.enabled is True
     assert cfg.agents.agent_two.enabled is False
     assert cfg.checkpointer.path == "/data/checkpoints.sqlite"
+    assert cfg.rag.enabled is True
+    assert cfg.rag.vector_db_path == "/data/vector_db"
+    assert cfg.rag.chunk_size == 1000
+    assert cfg.rag.chunk_overlap == 200
 
 
 def test_env_var_overrides(monkeypatch, tmp_path: Path):
