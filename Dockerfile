@@ -21,9 +21,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # System packages:
-#   curl, ca-certificates  -- entrypoint health check + HTTPS to OpenAI
-#   poppler-utils, tesseract-ocr, libmagic1  -- unstructured.io PDF parsing
-#                                              (for RAG ingestion at startup)
+#   curl, ca-certificates      -- entrypoint health check + HTTPS to OpenAI
+#   poppler-utils, tesseract-ocr, libmagic1
+#                               -- unstructured.io PDF parsing (RAG ingestion)
+#   libgl1, libglib2.0-0        -- OpenCV (pulled in by unstructured[pdf]);
+#                                  without libGL.so.1 unstructured raises
+#                                  ImportError and falls back to PyPDFLoader.
 # Persistent state uses /data/checkpoints.sqlite and /data/vector_db; /data
 # is provided by the host (e.g. HuggingFace Spaces mount) -- do not mkdir here.
 RUN apt-get update \
@@ -33,6 +36,8 @@ RUN apt-get update \
         poppler-utils \
         tesseract-ocr \
         libmagic1 \
+        libgl1 \
+        libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first to maximise layer caching.
