@@ -54,9 +54,9 @@ from src.workflow.nodes import (
     aggregator_node,
     agent_four_node,
     agent_three_node,
-    agent_two_node,
     central_direct_node,
     planner_node,
+    portfolio_node,
     qna_node,
 )
 from src.workflow.state import GraphState
@@ -113,7 +113,7 @@ def build_graph(
     g.add_node("planner", planner_node)
     g.add_node("central_direct", central_direct_node)
     g.add_node("qna_node", qna_node)
-    g.add_node("agent_two_node", agent_two_node)
+    g.add_node("portfolio_node", portfolio_node)
     g.add_node("agent_three_node", agent_three_node)
     g.add_node("agent_four_node", agent_four_node)
     g.add_node("aggregator", aggregator_node)
@@ -127,7 +127,7 @@ def build_graph(
             "central_direct": "central_direct",
             "aggregator": "aggregator",
             "qna_node": "qna_node",
-            "agent_two_node": "agent_two_node",
+            "portfolio_node": "portfolio_node",
             "agent_three_node": "agent_three_node",
             "agent_four_node": "agent_four_node",
         },
@@ -135,7 +135,7 @@ def build_graph(
 
     g.add_edge("central_direct", "aggregator")
     g.add_edge("qna_node", "aggregator")
-    g.add_edge("agent_two_node", "aggregator")
+    g.add_edge("portfolio_node", "aggregator")
     g.add_edge("agent_three_node", "aggregator")
     g.add_edge("agent_four_node", "aggregator")
     g.add_edge("aggregator", END)
@@ -214,6 +214,7 @@ def run_query(
             "query": request.query,
             "messages": [HumanMessage(content=request.query)],
             "session_id": tid,
+            "intent_hint": request.intent_hint,
         },
         config=config,
     )

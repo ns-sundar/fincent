@@ -64,9 +64,14 @@ agents:
       investment risk, market trading, brokers, and general IRS/tax
       topics. Refuses personal-finance, personal-portfolio, live
       market data, planning advice, and personal tax advice.
-  agent_two:
-    enabled: false
-    description: "Reserved placeholder for a future specialist agent."
+  portfolio:
+    enabled: true
+    description: >
+      Answers questions grounded in the user's own portfolio: the list
+      of accounts, current holdings, balances, asset-class allocation
+      (stocks / bonds / cash), and recent transaction activity. Data is
+      loaded from the static JSON files under
+      ``portfolio.data_path`` until live account connectivity is wired.
   agent_three:
     enabled: false
     description: "Reserved placeholder for a future specialist agent."
@@ -129,6 +134,23 @@ rag:
     host: "127.0.0.1"
     port: 8765
     tool_name: "rag_search"
+
+portfolio:
+  # The Portfolio agent reads the user's portfolio from JSON files
+  # (``accounts.json`` and ``transactions.json``) under ``data_path``.
+  # On startup the app copies every JSON from ``seed_path`` into
+  # ``data_path`` IF the file is missing there, so a fresh deployment
+  # lands with a working default portfolio while in-place edits to
+  # ``data_path`` survive restarts.
+  #
+  # ``data_path`` is absolute by default (same ``/data`` mount used by
+  # the SQLite checkpointer and the FAISS vector_db). HF Spaces mounts
+  # ``/data`` for you; local dev must provide it, or override via
+  # FINCENT__PORTFOLIO__DATA_PATH.
+  data_path: "/data/portfolio"
+  # Repo-relative read-only seed. Do not edit at runtime -- it is the
+  # canonical "default user" snapshot shipped with the code.
+  seed_path: "data/default_portfolio"
 
 checkpointer:
   # LangGraph persists the per-thread state (messages, plan, etc.) so

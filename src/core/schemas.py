@@ -17,7 +17,7 @@ class AgentName(str, Enum):
 
     CENTRAL = "central"
     QNA = "qna"
-    AGENT_TWO = "agent_two"
+    PORTFOLIO = "portfolio"
     AGENT_THREE = "agent_three"
     AGENT_FOUR = "agent_four"
 
@@ -32,7 +32,7 @@ class Intent(str, Enum):
     APP_INFO = "app_info"
     USER_GENERIC = "user_generic"
     QNA = "qna"
-    AGENT_TWO = "agent_two"
+    PORTFOLIO = "portfolio"
     AGENT_THREE = "agent_three"
     AGENT_FOUR = "agent_four"
     UNKNOWN = "unknown"
@@ -66,6 +66,16 @@ class QueryRequest(BaseModel):
     session_id: Optional[str] = Field(
         default=None,
         description="Optional opaque session id (reserved for future memory).",
+    )
+    intent_hint: Optional[Intent] = Field(
+        default=None,
+        description=(
+            "Optional caller-provided intent. When set, the central "
+            "planner skips LLM classification and dispatches directly "
+            "to the matching specialist (e.g. the Portfolio tab in "
+            "the Streamlit UI pins 'portfolio'). Ignored if the hinted "
+            "specialist is disabled in config."
+        ),
     )
 
 

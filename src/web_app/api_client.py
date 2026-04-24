@@ -31,6 +31,7 @@ def query_fincent(
     query: str,
     *,
     session_id: Optional[str] = None,
+    intent_hint: Optional[str] = None,
     timeout: int = 120,
 ) -> QueryResponse:
     """POST a user query to the FastAPI ``/query`` endpoint.
@@ -40,6 +41,10 @@ def query_fincent(
         query: Natural-language question from the user.
         session_id: Thread id used by the LangGraph checkpointer so
             that state persists across requests.
+        intent_hint: Optional caller-pinned intent (e.g. ``"portfolio"``
+            from the Portfolio tab). The server's planner will skip the
+            LLM classifier and dispatch directly to the hinted
+            specialist.
         timeout: Per-request timeout in seconds.
 
     Returns:
@@ -49,7 +54,11 @@ def query_fincent(
         FincentApiError: If the server returns an error status.
     """
     url = _url(base_url, "/query")
-    payload = QueryRequest(query=query, session_id=session_id).model_dump()
+    payload = QueryRequest(
+        query=query,
+        session_id=session_id,
+        intent_hint=intent_hint,
+    ).model_dump(mode="json")
     try:
         resp = requests.post(url, json=payload, timeout=timeout)
     except requests.RequestException as exc:

@@ -42,8 +42,8 @@ separate process.
                           |
    +----------+-----------+-----------+----------+
    |          |           |           |          |
- central    qna        agent_two   agent_three  agent_four
-(router/    (skeleton)  (stub)      (stub)       (stub)
+ central    qna        portfolio  agent_three  agent_four
+(router/    (skeleton)  (grounded)  (stub)       (stub)
  direct/
  aggregator)
 ```
@@ -234,7 +234,7 @@ fincent/
     agents/
       central/      # Orchestrator (planner + direct + aggregator)
       qna/          # Generic financial Q&A (agentic RAG: top-k + MMR + source-filter citations)
-      agent_two/    # Reserved
+      portfolio/    # Personal portfolio agent (reads /data/portfolio; seeded on first boot from data/default_portfolio)
       agent_three/  # Reserved
       agent_four/   # Reserved
     core/           # Config, LLM factory, shared schemas
@@ -300,7 +300,7 @@ A template lives in `.env.example`.
 |---|---|
 | Python 3.11+ | |
 | `OPENAI_API_KEY` | Required at runtime (chat model **and** embeddings). |
-| Host directory `/data` | Defaults: `/data/checkpoints.sqlite` (session checkpointer) and `/data/vector_db/` (FAISS index). HF Spaces mounts `/data`; locally it should exist per your setup, or set `FINCENT__CHECKPOINTER__PATH` / `FINCENT__RAG__VECTOR_DB_PATH` to writable locations. |
+| Host directory `/data` | Defaults: `/data/checkpoints.sqlite` (session checkpointer), `/data/vector_db/` (FAISS index), and `/data/portfolio/` (runtime portfolio JSONs, seeded on first boot from `data/default_portfolio/` in the repo). HF Spaces mounts `/data`; locally it should exist per your setup, or set `FINCENT__CHECKPOINTER__PATH` / `FINCENT__RAG__VECTOR_DB_PATH` / `FINCENT__PORTFOLIO__DATA_PATH` to writable locations. |
 | System libs for PDF parsing | Needed only if you want `UnstructuredPDFLoader` during ingestion. On Ubuntu: `sudo apt-get install poppler-utils tesseract-ocr libmagic1`. Without them, ingestion transparently falls back to `PyPDFLoader`. |
 | `jq` *(optional)* | Pretty-prints API responses in the terminal: `sudo apt-get install jq` |
 
@@ -384,9 +384,10 @@ curl -s http://localhost:8000/rag/status | jq
 
    The Dockerfile `HEALTHCHECK` uses **`--start-period=300s`** (same 5 minutes as startup) so Docker does not mark the container unhealthy while ingestion is still running, then **`--interval=90s`** for ongoing checks. Override the entrypoint wait with **`FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS`** (Space variable or `docker run -e`).
 
-4. **Persistent state** — Spaces **mounts `/data`**; the image does **not** run `mkdir` for it. The app writes two things under `/data`:
+4. **Persistent state** — Spaces **mounts `/data`**; the image does **not** run `mkdir` for it. The app writes three things under `/data`:
    - **`/data/checkpoints.sqlite`** — LangGraph session checkpoints (`FINCENT__CHECKPOINTER__PATH` overrides).
    - **`/data/vector_db/`** — FAISS index built by the RAG ingestion pipeline at startup (`FINCENT__RAG__VECTOR_DB_PATH` overrides). The index is treated as static: once present, subsequent container restarts skip ingestion.
+   - **`/data/portfolio/`** — Runtime portfolio JSONs (`accounts.json`, `transactions.json`). On the first boot the FastAPI lifespan seeds this directory from `data/default_portfolio/` in the repo (read-only). Subsequent boots leave existing files alone so future in-app edits survive restarts. Override the location with `FINCENT__PORTFOLIO__DATA_PATH`, and the seed source with `FINCENT__PORTFOLIO__SEED_PATH`.
 
 5. **Optional overrides** (Space **Settings → Variables**):
    - `API_PORT` — change internal API port (default `8000`). If you change it, you must keep it in sync with `FINCENT__UI__API_BASE_URL` or use `FINCENT__UI__API_BASE_URL=http://127.0.0.1:<API_PORT>`.

@@ -37,10 +37,12 @@ def patch_llm(monkeypatch):
         fake = _ScriptedFakeLLM(responses)
         # Patch every import site so all agents pick up the fake.
         from src.agents.central import agent as central_module
+        from src.agents.portfolio import agent as portfolio_module
         from src.agents.qna import agent as qna_module
 
         monkeypatch.setattr(central_module, "get_default_chat_model", lambda: fake)
         monkeypatch.setattr(qna_module, "get_default_chat_model", lambda: fake)
+        monkeypatch.setattr(portfolio_module, "get_default_chat_model", lambda: fake)
         return fake
 
     return _apply
@@ -87,3 +89,24 @@ def test_workflow_routes_to_qna(patch_llm):
     assert Intent.QNA in out.plan.intents
     assert out.answer == qna_text  # single-response shortcut
     assert any(r.agent == AgentName.QNA for r in out.agent_responses)
+
+
+def test_workflow_routes_portfolio_via_intent_hint(patch_llm):
+    """An explicit intent_hint must bypass the router and run the portfolio agent."""
+    from src.workflow.graph import run_query
+
+    # Only the portfolio agent's LLM call is expected; the router is
+    # short-circuited by the hint.
+    portfolio_text = "You hold four accounts worth just over $1M."
+    patch_llm(portfolio_text)
+
+    out = run_query(
+        QueryRequest(
+            query="summarise my portfolio",
+            intent_hint=Intent.PORTFOLIO,
+        )
+    )
+    assert out.plan.handled_by_central is False
+    assert Intent.PORTFOLIO in out.plan.intents
+    assert out.answer == portfolio_text
+    assert any(r.agent == AgentName.PORTFOLIO for r in out.agent_responses)

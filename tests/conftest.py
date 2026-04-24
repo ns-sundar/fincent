@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,14 @@ os.environ.setdefault("FINCENT__CHECKPOINTER__PATH", ":memory:")
 # never run it as a side effect of importing the FastAPI app; specific
 # RAG tests re-enable it explicitly.
 os.environ.setdefault("FINCENT__RAG__ENABLED", "false")
+
+# Keep portfolio seeding off the real ``/data`` host mount during
+# tests. The seed copier runs once per process into this dir and then
+# every ``load_portfolio()`` call reads from it -- so tests exercise
+# the same code path as production without touching the real
+# ``/data/portfolio``.
+_PORTFOLIO_TEST_DIR = Path(tempfile.mkdtemp(prefix="fincent-portfolio-test-"))
+os.environ.setdefault("FINCENT__PORTFOLIO__DATA_PATH", str(_PORTFOLIO_TEST_DIR))
 
 
 @pytest.fixture(autouse=True)

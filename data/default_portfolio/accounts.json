@@ -1,0 +1,110 @@
+[
+  {
+    "account_id": "ACC-001",
+    "name": "US Equities \u2013 Growth",
+    "type": "stock",
+    "currency": "USD",
+    "broker": "Fidelity",
+    "opened_date": "2022-01-10",
+    "holdings": [
+      {
+        "ticker": "AAPL",
+        "shares": 700,
+        "avg_cost": 148.5,
+        "current_price": 189.3
+      },
+      {
+        "ticker": "MSFT",
+        "shares": 400,
+        "avg_cost": 270.0,
+        "current_price": 415.2
+      },
+      {
+        "ticker": "NVDA",
+        "shares": 200,
+        "avg_cost": 220.0,
+        "current_price": 875.4
+      }
+    ]
+  },
+  {
+    "account_id": "ACC-002",
+    "name": "Dividend & Value",
+    "type": "stock",
+    "currency": "USD",
+    "broker": "Schwab",
+    "opened_date": "2022-03-15",
+    "holdings": [
+      {
+        "ticker": "JNJ",
+        "shares": 250,
+        "avg_cost": 162.0,
+        "current_price": 152.8
+      },
+      {
+        "ticker": "PG",
+        "shares": 400,
+        "avg_cost": 138.0,
+        "current_price": 161.4
+      },
+      {
+        "ticker": "KO",
+        "shares": 900,
+        "avg_cost": 58.5,
+        "current_price": 62.1
+      },
+      {
+        "ticker": "VZ",
+        "shares": 800,
+        "avg_cost": 45.0,
+        "current_price": 39.8
+      }
+    ]
+  },
+  {
+    "account_id": "ACC-003",
+    "name": "Core Bond Portfolio",
+    "type": "bond",
+    "currency": "USD",
+    "broker": "Vanguard",
+    "opened_date": "2022-02-01",
+    "holdings": [
+      {
+        "ticker": "BND",
+        "description": "Vanguard Total Bond Market ETF",
+        "shares": 1500,
+        "avg_cost": 76.5,
+        "current_price": 72.8,
+        "yield_pct": 3.85,
+        "duration_years": 6.4
+      },
+      {
+        "ticker": "TLT",
+        "description": "iShares 20+ Year Treasury Bond ETF",
+        "shares": 600,
+        "avg_cost": 118.0,
+        "current_price": 96.4,
+        "yield_pct": 4.52,
+        "duration_years": 16.8
+      }
+    ]
+  },
+  {
+    "account_id": "ACC-004",
+    "name": "Liquid Cash Reserve",
+    "type": "cash",
+    "currency": "USD",
+    "broker": "Fidelity",
+    "opened_date": "2022-01-10",
+    "holdings": [
+      {
+        "ticker": "SPAXX",
+        "description": "Fidelity Government Money Market Fund",
+        "shares": 220166.8,
+        "avg_cost": 1.0,
+        "current_price": 1.0,
+        "yield_pct": 5.01
+      }
+    ]
+  }
+]

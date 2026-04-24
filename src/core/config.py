@@ -68,7 +68,7 @@ class AgentsConfig(BaseModel):
 
     central: AgentToggle = AgentToggle(enabled=True, max_fanout=3)
     qna: AgentToggle = AgentToggle(enabled=True)
-    agent_two: AgentToggle = AgentToggle(enabled=False)
+    portfolio: AgentToggle = AgentToggle(enabled=True)
     agent_three: AgentToggle = AgentToggle(enabled=False)
     agent_four: AgentToggle = AgentToggle(enabled=False)
 
@@ -145,6 +145,26 @@ class RagConfig(BaseModel):
     mcp_server: McpServerConfig = McpServerConfig()
 
 
+class PortfolioConfig(BaseModel):
+    """Settings for the Portfolio agent.
+
+    The agent reads the user's portfolio from JSON files under
+    ``data_path`` at runtime. On first startup the application seeds
+    that directory by copying every JSON file from ``seed_path`` (a
+    repo-relative read-only snapshot shipped with the code). Once
+    seeded, subsequent restarts leave ``data_path`` untouched so any
+    future in-app edits to the user's portfolio are preserved.
+    """
+
+    # Writable runtime location -- HF Spaces mounts /data; local dev
+    # either mounts it too or overrides this path.
+    data_path: str = "/data/portfolio"
+
+    # Read-only seed shipped in the repo. Relative paths resolve
+    # against the project root.
+    seed_path: str = "data/default_portfolio"
+
+
 class AppConfig(BaseModel):
     """Top-level configuration object."""
 
@@ -155,6 +175,7 @@ class AppConfig(BaseModel):
     agents: AgentsConfig = AgentsConfig()
     checkpointer: CheckpointerConfig = CheckpointerConfig()
     rag: RagConfig = RagConfig()
+    portfolio: PortfolioConfig = PortfolioConfig()
     logging: LoggingConfig = LoggingConfig()
 
 

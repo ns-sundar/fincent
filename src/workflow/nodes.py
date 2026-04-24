@@ -10,7 +10,7 @@ from typing import Dict, List
 
 from langchain_core.messages import AIMessage
 
-from src.agents import agent_four, agent_three, agent_two, qna
+from src.agents import agent_four, agent_three, portfolio, qna
 from src.agents.central import aggregate, answer_directly, plan_route
 from src.core.schemas import AgentName, AgentResponse, Intent
 from src.utils.logging import get_logger
@@ -26,7 +26,7 @@ _logger = get_logger(__name__)
 # Each specialist exposes ``answer(query: str) -> AgentResponse``.
 SPECIALIST_DISPATCH: Dict[Intent, callable] = {
     Intent.QNA: qna.answer,
-    Intent.AGENT_TWO: agent_two.answer,
+    Intent.PORTFOLIO: portfolio.answer,
     Intent.AGENT_THREE: agent_three.answer,
     Intent.AGENT_FOUR: agent_four.answer,
 }
@@ -35,7 +35,7 @@ SPECIALIST_DISPATCH: Dict[Intent, callable] = {
 # Graph-node names that map 1:1 to specialist intents.
 SPECIALIST_NODE_FOR: Dict[Intent, str] = {
     Intent.QNA: "qna_node",
-    Intent.AGENT_TWO: "agent_two_node",
+    Intent.PORTFOLIO: "portfolio_node",
     Intent.AGENT_THREE: "agent_three_node",
     Intent.AGENT_FOUR: "agent_four_node",
 }
@@ -52,10 +52,13 @@ def planner_node(state: GraphState) -> GraphState:
     Also resets ``agent_responses`` to ``[]`` at the start of a turn
     (the custom reducer treats ``None`` as a reset signal) so that
     responses recovered from a SQLite checkpoint do not leak into the
-    current turn.
+    current turn. When an ``intent_hint`` is present in the state
+    (set by the HTTP layer from ``QueryRequest.intent_hint``) the
+    planner short-circuits the LLM classifier and dispatches directly
+    to that specialist.
     """
     query = state["query"]
-    plan = plan_route(query)
+    plan = plan_route(query, intent_hint=state.get("intent_hint"))
     _logger.info(
         "Plan: handled_by_central=%s intents=%s",
         plan.handled_by_central,
@@ -95,7 +98,7 @@ def _make_specialist_node(intent: Intent):
 
 
 qna_node = _make_specialist_node(Intent.QNA)
-agent_two_node = _make_specialist_node(Intent.AGENT_TWO)
+portfolio_node = _make_specialist_node(Intent.PORTFOLIO)
 agent_three_node = _make_specialist_node(Intent.AGENT_THREE)
 agent_four_node = _make_specialist_node(Intent.AGENT_FOUR)
 

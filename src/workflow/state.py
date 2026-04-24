@@ -7,7 +7,7 @@ from typing import Annotated, List, Optional, TypedDict
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
-from src.core.schemas import AgentResponse, RoutingPlan
+from src.core.schemas import AgentResponse, Intent, RoutingPlan
 
 
 def _reset_or_extend(
@@ -41,6 +41,11 @@ class GraphState(TypedDict, total=False):
                          planner can clear stale checkpoint data.
         final_answer:    Final user-facing answer for the current turn.
         session_id:      Opaque thread identifier (informational).
+        intent_hint:     Optional caller-pinned intent (e.g. the
+                         Portfolio tab in the Streamlit UI). When set
+                         the planner skips LLM classification and
+                         dispatches directly to the matching
+                         specialist.
     """
 
     query: str
@@ -49,3 +54,4 @@ class GraphState(TypedDict, total=False):
     agent_responses: Annotated[List[AgentResponse], _reset_or_extend]
     final_answer: Optional[str]
     session_id: Optional[str]
+    intent_hint: Optional[Intent]

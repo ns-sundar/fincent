@@ -62,7 +62,7 @@ def _enabled_specialist_intents(cfg: AppConfig) -> set[Intent]:
     """Compute the set of specialist intents currently enabled in config."""
     mapping = {
         Intent.QNA: cfg.agents.qna.enabled,
-        Intent.AGENT_TWO: cfg.agents.agent_two.enabled,
+        Intent.PORTFOLIO: cfg.agents.portfolio.enabled,
         Intent.AGENT_THREE: cfg.agents.agent_three.enabled,
         Intent.AGENT_FOUR: cfg.agents.agent_four.enabled,
     }
@@ -89,6 +89,7 @@ def plan_route(
     *,
     llm: Optional[BaseChatModel] = None,
     cfg: Optional[AppConfig] = None,
+    intent_hint: Optional[Intent] = None,
 ) -> RoutingPlan:
     """Classify a user query into a structured ``RoutingPlan``.
 
@@ -100,11 +101,31 @@ def plan_route(
         query: The raw user message.
         llm: Optional pre-built chat model (mainly for tests).
         cfg: Optional pre-loaded ``AppConfig`` (mainly for tests).
+        intent_hint: Optional caller-pinned intent (e.g. the Portfolio
+            tab in the Streamlit UI pins ``Intent.PORTFOLIO``). When
+            provided and the hinted specialist is enabled, the LLM
+            classifier is skipped entirely and the plan is built from
+            the hint. Ignored for ``app_info`` / ``user_generic`` /
+            ``unknown`` hints and for disabled specialists.
 
     Returns:
         A validated ``RoutingPlan``.
     """
     cfg = cfg or get_config()
+
+    if intent_hint is not None:
+        enabled = _enabled_specialist_intents(cfg)
+        if intent_hint in enabled:
+            return RoutingPlan(
+                intents=[intent_hint],
+                handled_by_central=False,
+                rationale=f"Caller pinned intent '{intent_hint.value}'.",
+            )
+        _logger.info(
+            "Ignoring intent_hint=%s (not an enabled specialist).",
+            intent_hint.value,
+        )
+
     llm = llm or get_default_chat_model()
 
     response = llm.invoke(

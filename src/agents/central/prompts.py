@@ -30,7 +30,13 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
                           rules. NOT live prices, NOT personal
                           portfolio, NOT planning, NOT personal tax
                           advice.
-      - agent_two      -> RESERVED (not yet implemented).
+      - portfolio      -> Questions about the USER'S OWN portfolio:
+                          their accounts, holdings, current balances,
+                          asset-class split (stocks / bonds / cash),
+                          concentration, recent transactions / buys
+                          / sells / deposits / dividends, and similar
+                          grounded queries about the user's personal
+                          financial data.
       - agent_three    -> RESERVED (not yet implemented).
       - agent_four     -> RESERVED (not yet implemented).
       - unknown        -> Use only when nothing else fits.

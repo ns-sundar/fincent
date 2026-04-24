@@ -67,12 +67,12 @@ def test_plan_route_drops_disabled_specialists():
     payload = json.dumps(
         {
             "handled_by_central": False,
-            "intents": ["agent_two", "qna"],
+            "intents": ["agent_three", "qna"],
             "rationale": "",
         }
     )
     plan = plan_route("Test", llm=_fake_llm(payload))
-    assert Intent.AGENT_TWO not in plan.intents
+    assert Intent.AGENT_THREE not in plan.intents
     assert Intent.QNA in plan.intents
 
 
@@ -88,10 +88,36 @@ def test_plan_route_falls_back_when_no_enabled_specialist():
     payload = json.dumps(
         {
             "handled_by_central": False,
-            "intents": ["agent_two", "agent_three"],
+            "intents": ["agent_three", "agent_four"],
         }
     )
     plan = plan_route("Test", llm=_fake_llm(payload))
+    assert plan.intents == [Intent.QNA]
+
+
+def test_plan_route_honors_intent_hint():
+    """An explicit caller hint bypasses the LLM classifier."""
+    # No responses primed: if the LLM were called, FakeListChatModel
+    # would raise. This proves the hint short-circuited the router.
+    plan = plan_route(
+        "show my portfolio",
+        llm=_fake_llm(),
+        intent_hint=Intent.PORTFOLIO,
+    )
+    assert plan.handled_by_central is False
+    assert plan.intents == [Intent.PORTFOLIO]
+
+
+def test_plan_route_ignores_hint_for_disabled_specialist():
+    """A hint pointing at a disabled agent should be ignored."""
+    payload = json.dumps(
+        {"handled_by_central": False, "intents": ["qna"]}
+    )
+    plan = plan_route(
+        "Test",
+        llm=_fake_llm(payload),
+        intent_hint=Intent.AGENT_THREE,
+    )
     assert plan.intents == [Intent.QNA]
 
 

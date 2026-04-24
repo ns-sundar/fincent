@@ -10,8 +10,20 @@ The UI talks to the FastAPI server over HTTP (URL configured via
 
 The conversation is identified by a ``session_id`` query parameter
 (``?session_id=<id>``). If none is present, the UI falls back to
-``DEFAULT_SESSION_ID``. The backend uses the session id as a LangGraph
-thread id so the transcript survives reloads and tab switches.
+``DEFAULT_SESSION_ID``.
+
+The UI is organised as two tabs:
+
+* **QnA**       -- routes questions through the central planner
+                   (typically into the Q&A agent).
+* **Portfolio** -- pins ``intent_hint="portfolio"`` so every message
+                   goes straight to the Portfolio agent. A right-hand
+                   sidebar renders plotly graphics for the user's
+                   static portfolio snapshot.
+
+Each tab uses its own LangGraph thread (``<session>-qna`` /
+``<session>-portfolio``) so the two transcripts are independent and
+both survive reloads.
 """
 
 from __future__ import annotations
@@ -20,7 +32,7 @@ import html
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 # Ensure the project root is on sys.path regardless of how Streamlit was
 # launched (CLI, Docker, HuggingFace Spaces, etc.).
@@ -30,6 +42,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import streamlit as st
 
+from src.agents.portfolio import load_portfolio
 from src.core.config import get_config
 from src.web_app.api_client import (
     FincentApiError,
@@ -39,13 +52,20 @@ from src.web_app.api_client import (
     rag_status,
     reset_thread,
 )
+from src.web_app.portfolio_view import render_portfolio_panel
 
 # Hardcoded fallback when the visitor does not supply ``?session_id=``.
 DEFAULT_SESSION_ID: str = "default-session"
 
 
+# Per-tab thread-id suffixes so the QnA and Portfolio transcripts stay
+# independent even though they share a base ``?session_id=``.
+_QNA_SUFFIX: str = "qna"
+_PORTFOLIO_SUFFIX: str = "portfolio"
+
+
 # ---------------------------------------------------------------------
-# Helpers
+# Session / history helpers
 # ---------------------------------------------------------------------
 
 
@@ -62,7 +82,6 @@ def _resolve_session_id() -> str:
     try:
         qp = st.query_params
     except AttributeError:
-        # Streamlit < 1.30 compatibility (unlikely given requirements).
         qp = st.experimental_get_query_params()
     raw = qp.get("session_id") if qp else None
     if isinstance(raw, list):
@@ -71,26 +90,44 @@ def _resolve_session_id() -> str:
     return candidate or DEFAULT_SESSION_ID
 
 
-def _rehydrate_if_needed(api_base_url: str, session_id: str) -> None:
-    """Populate ``st.session_state.history`` from the backend when needed.
+def _thread_id_for(session_id: str, suffix: str) -> str:
+    """Compose a per-tab LangGraph thread id."""
+    return f"{session_id}-{suffix}"
 
-    Runs when the app is loaded for the first time, or when the
-    visitor switches to a different ``session_id`` via the URL.
+
+def _history_state_key(suffix: str) -> str:
+    return f"history_{suffix}"
+
+
+def _session_state_key(suffix: str) -> str:
+    return f"session_id_{suffix}"
+
+
+def _rehydrate_tab(api_base_url: str, session_id: str, suffix: str) -> None:
+    """Populate ``st.session_state[history_<suffix>]`` from the backend.
+
+    Runs once per tab the first time it is viewed for the active
+    ``session_id``, or whenever the visitor switches to a different
+    ``session_id`` via the URL.
     """
-    active = st.session_state.get("session_id")
-    if "history" in st.session_state and active == session_id:
+    active = st.session_state.get(_session_state_key(suffix))
+    if _history_state_key(suffix) in st.session_state and active == session_id:
         return
-    st.session_state["session_id"] = session_id
+    st.session_state[_session_state_key(suffix)] = session_id
     try:
-        remote = get_history(api_base_url, session_id)
+        remote = get_history(api_base_url, _thread_id_for(session_id, suffix))
     except FincentApiError:
-        # Treat a failed fetch as "no history" -- the UI must still load.
         remote = []
-    st.session_state["history"] = remote
+    st.session_state[_history_state_key(suffix)] = remote
+
+
+# ---------------------------------------------------------------------
+# Sidebar / banners
+# ---------------------------------------------------------------------
 
 
 def _render_sidebar(api_base_url: str, session_id: str) -> None:
-    """Render sidebar: primary actions at top, backend status as a quiet footer."""
+    """Render the app-wide sidebar: reset buttons, backend status."""
     cfg = get_config()
     ok = health(api_base_url)
     api_line = "reachable" if ok else "unreachable"
@@ -99,19 +136,28 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
 
     with st.sidebar:
         st.header(cfg.app.name)
-        if st.button("Clear conversation"):
-            # Clear the server-side checkpoint BEFORE clearing the
-            # local history so a failure doesn't desync the two.
+
+        if st.button("Clear QnA conversation", key="reset_qna_btn"):
             try:
-                reset_thread(api_base_url, session_id)
+                reset_thread(api_base_url, _thread_id_for(session_id, _QNA_SUFFIX))
             except FincentApiError as exc:
                 st.error(f"Reset failed: {exc}")
-                return
-            st.session_state["history"] = []
-            st.rerun()
+            else:
+                st.session_state[_history_state_key(_QNA_SUFFIX)] = []
+                st.rerun()
+
+        if st.button("Clear Portfolio conversation", key="reset_portfolio_btn"):
+            try:
+                reset_thread(
+                    api_base_url, _thread_id_for(session_id, _PORTFOLIO_SUFFIX)
+                )
+            except FincentApiError as exc:
+                st.error(f"Reset failed: {exc}")
+            else:
+                st.session_state[_history_state_key(_PORTFOLIO_SUFFIX)] = []
+                st.rerun()
 
         st.markdown("---")
-        # Muted footer (less intrusive than success/error callouts).
         st.markdown(
             f"<p style='font-size:0.75rem;color:#6b7280;line-height:1.5;margin:0;'>"
             f"<span style='color:#374151;font-weight:600;'>Backend</span> · "
@@ -124,13 +170,7 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
 
 
 def _render_rag_banner(api_base_url: str) -> None:
-    """Surface RAG ingestion failures without blocking the chat UI.
-
-    * ``ready`` / ``skipped`` / ``disabled`` -> silent (no banner).
-    * ``ingesting`` / ``pending``            -> informational banner.
-    * ``failed`` / ``unknown``               -> error banner; chat
-                                                 still accepts input.
-    """
+    """Surface RAG ingestion failures without blocking the chat UI."""
     status = rag_status(api_base_url)
     state = str(status.get("state", "unknown")).lower()
     detail = str(status.get("detail") or "")
@@ -147,7 +187,6 @@ def _render_rag_banner(api_base_url: str) -> None:
         )
         return
 
-    # failed / unknown
     msg = (
         "Knowledge base is unavailable; answers will fall back to the "
         "model's general knowledge without retrieval context."
@@ -159,11 +198,9 @@ def _render_rag_banner(api_base_url: str) -> None:
     st.error(msg)
 
 
-def _render_history() -> None:
-    """Replay previous chat turns."""
-    for turn in st.session_state.get("history", []):
-        with st.chat_message(turn["role"]):
-            st.markdown(turn["content"])
+# ---------------------------------------------------------------------
+# Chat rendering
+# ---------------------------------------------------------------------
 
 
 def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> None:
@@ -173,6 +210,147 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
         st.markdown("**Agent responses**")
         for ar in agent_payloads:
             st.markdown(f"- **{ar.get('agent', '?')}** -- {ar.get('content', '')}")
+
+
+def _render_history(history: List[Dict[str, str]]) -> None:
+    """Replay past turns in chronological order (oldest first)."""
+    for turn in history:
+        with st.chat_message(turn["role"]):
+            st.markdown(turn["content"])
+
+
+def _run_chat_turn(
+    *,
+    api_base_url: str,
+    session_id: str,
+    suffix: str,
+    user_input: str,
+    intent_hint: Optional[str],
+) -> None:
+    """Render one new turn at the bottom of the transcript.
+
+    Renders the user bubble, a ``thinking...`` placeholder assistant
+    bubble, and finally the real answer once the backend replies. Both
+    bubbles render at the current Streamlit cursor -- i.e. directly
+    below the previously-rendered history -- so the newest question
+    sits at the bottom and its answer appears just below it.
+    """
+    history_key = _history_state_key(suffix)
+
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    with st.chat_message("assistant"):
+        placeholder = st.empty()
+        placeholder.markdown("_thinking..._")
+        try:
+            response = query_fincent(
+                api_base_url,
+                user_input,
+                session_id=_thread_id_for(session_id, suffix),
+                intent_hint=intent_hint,
+            )
+        except FincentApiError as exc:
+            placeholder.error(str(exc))
+            return
+
+        placeholder.markdown(response.answer or "(no answer produced)")
+        _render_plan_expander(
+            response.plan.model_dump(),
+            [ar.model_dump() for ar in response.agent_responses],
+        )
+
+    st.session_state[history_key].append({"role": "user", "content": user_input})
+    st.session_state[history_key].append(
+        {"role": "assistant", "content": response.answer or ""}
+    )
+
+
+# ---------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------
+
+
+def _render_chat_tab(
+    *,
+    api_base_url: str,
+    session_id: str,
+    suffix: str,
+    placeholder: str,
+    input_key: str,
+    intent_hint: Optional[str],
+    intro: Optional[str] = None,
+) -> None:
+    """Render a chat tab: history on top, ``st.chat_input`` pinned at bottom.
+
+    ``st.chat_input`` is called at the tab's top level (no columns, no
+    fixed-height containers), which is what tells Streamlit to pin it
+    to the bottom of the page -- the standard chat layout.
+    """
+    _rehydrate_tab(api_base_url, session_id, suffix)
+    history = st.session_state[_history_state_key(suffix)]
+
+    if intro:
+        st.markdown(intro)
+
+    _render_history(history)
+
+    user_input = st.chat_input(placeholder, key=input_key)
+    if not user_input:
+        return
+    _run_chat_turn(
+        api_base_url=api_base_url,
+        session_id=session_id,
+        suffix=suffix,
+        user_input=user_input,
+        intent_hint=intent_hint,
+    )
+
+
+def _render_qna_tab(api_base_url: str, session_id: str) -> None:
+    """QnA tab: full-width chat routed through the central planner."""
+    _render_rag_banner(api_base_url)
+    _render_chat_tab(
+        api_base_url=api_base_url,
+        session_id=session_id,
+        suffix=_QNA_SUFFIX,
+        placeholder="Ask a general financial question...",
+        input_key="qna_chat_input",
+        intent_hint=None,
+    )
+
+
+def _render_portfolio_tab(api_base_url: str, session_id: str) -> None:
+    """Portfolio tab: graphics on top, chat below (same flow as QnA).
+
+    Laying the graphics above the chat lets ``st.chat_input`` live at
+    the tab's top level, which means Streamlit pins it to the bottom
+    of the page -- exactly the same flow as the single-pane QnA tab.
+    No columns, no fixed-height containers, no ``st.rerun()`` dance.
+    """
+    try:
+        snapshot = load_portfolio()
+    except Exception as exc:  # noqa: BLE001 -- always render something
+        st.error(f"Could not load portfolio data: {exc}")
+        snapshot = None
+
+    if snapshot is not None:
+        render_portfolio_panel(snapshot)
+        st.divider()
+
+    _render_chat_tab(
+        api_base_url=api_base_url,
+        session_id=session_id,
+        suffix=_PORTFOLIO_SUFFIX,
+        placeholder="Ask about your portfolio...",
+        input_key="portfolio_chat_input",
+        intent_hint="portfolio",
+        intro=(
+            "Ask the Portfolio agent about your accounts, balances, "
+            "asset allocation, or recent transactions. The graphics "
+            "above show the same snapshot the agent sees."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------
@@ -186,13 +364,12 @@ def main() -> None:
     st.set_page_config(
         page_title=cfg.ui.page_title,
         page_icon=cfg.ui.page_icon,
-        layout="centered",
+        layout="wide",
     )
 
     api_base_url = _resolve_api_base_url()
     session_id = _resolve_session_id()
 
-    _rehydrate_if_needed(api_base_url, session_id)
     _render_sidebar(api_base_url, session_id)
 
     st.title(cfg.ui.page_title)
@@ -200,40 +377,11 @@ def main() -> None:
     if subtitle:
         st.caption(subtitle)
 
-    _render_rag_banner(api_base_url)
-
-    _render_history()
-
-    user_input = st.chat_input("Ask a financial question...")
-    if not user_input:
-        return
-
-    st.session_state["history"].append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
-    with st.chat_message("assistant"):
-        placeholder = st.empty()
-        placeholder.markdown("_thinking..._")
-        try:
-            response = query_fincent(
-                api_base_url,
-                user_input,
-                session_id=session_id,
-            )
-        except FincentApiError as exc:
-            placeholder.error(str(exc))
-            return
-
-        placeholder.markdown(response.answer or "(no answer produced)")
-        _render_plan_expander(
-            response.plan.model_dump(),
-            [ar.model_dump() for ar in response.agent_responses],
-        )
-
-    st.session_state["history"].append(
-        {"role": "assistant", "content": response.answer or ""}
-    )
+    qna_tab, portfolio_tab = st.tabs(["QnA", "Portfolio"])
+    with qna_tab:
+        _render_qna_tab(api_base_url, session_id)
+    with portfolio_tab:
+        _render_portfolio_tab(api_base_url, session_id)
 
 
 if __name__ == "__main__":

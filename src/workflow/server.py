@@ -36,6 +36,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.agents.portfolio.seed import seed_portfolio_if_needed
 from src.core.config import AppConfig, get_config
 from src.core.schemas import QueryRequest, QueryResponse
 from src.rag import status as rag_status_mod
@@ -104,6 +105,16 @@ def _build_lifespan(cfg: AppConfig):
 
     @asynccontextmanager
     async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+        # Portfolio seeding is a fast, synchronous directory-copy. We
+        # run it before RAG ingestion so the Portfolio agent + UI
+        # graphics always see a populated data_path, and any seed
+        # failure is logged before the (much slower) RAG step starts.
+        try:
+            seeded = seed_portfolio_if_needed(cfg)
+            _logger.info("Portfolio seed ready at %s", seeded)
+        except Exception:  # noqa: BLE001 -- never block startup
+            _logger.exception("Portfolio seeding failed; continuing startup")
+
         _logger.info("RAG lifespan: starting ingestion (enabled=%s)", cfg.rag.enabled)
         try:
             # ingest_if_needed is synchronous + potentially long-running
