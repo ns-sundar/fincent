@@ -5,12 +5,16 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.tools import tool
 
 from src.agents.portfolio import answer as portfolio_answer
-from src.agents.portfolio import load_portfolio
+from src.agents.portfolio import get_portfolio_tools, load_portfolio
 from src.agents.portfolio.loader import AccountSummary, PortfolioSnapshot
+from src.agents.portfolio.mcp_tools import reset_portfolio_tools_cache
 from src.agents.portfolio.seed import seed_portfolio_if_needed
 from src.core.config import load_config, reset_config_cache
 from src.core.schemas import AgentName
@@ -212,3 +216,187 @@ def test_portfolio_context_block_exposes_full_transaction_list():
     assert "transactions_newest_first" in block
     # Both transaction tickers should appear in the JSON context.
     assert "AAA" in block and "CASH" in block
+
+
+# ---------------------------------------------------------------------
+# answer -- tool-calling path
+# ---------------------------------------------------------------------
+
+
+class _ScriptedToolCallingLLM(FakeListChatModel):
+    """Fake chat model that emits a canned tool call on the first turn.
+
+    FakeListChatModel can only return plain string responses and
+    raises ``NotImplementedError`` for ``bind_tools``. This minimal
+    wrapper overrides both so that:
+
+    * ``bind_tools(tools)`` returns ``self`` (the tools list is
+      irrelevant for the fake's scripted reply), and
+    * the first ``invoke`` returns an ``AIMessage`` with one tool
+      call. Subsequent calls fall back to the parent class so the
+      final-answer text can be fed through ``responses``.
+    """
+
+    first_turn_tool: str = ""
+    first_turn_args: Dict[str, Any] = {}
+    _emitted: bool = False
+
+    def bind_tools(self, tools: List[Any], **_kwargs: Any) -> "_ScriptedToolCallingLLM":  # type: ignore[override]
+        return self
+
+    def _generate(  # type: ignore[override]
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        from langchain_core.outputs import ChatGeneration, ChatResult
+
+        if not self._emitted and self.first_turn_tool:
+            self._emitted = True
+            ai = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": self.first_turn_tool,
+                        "args": dict(self.first_turn_args),
+                        "id": "call-1",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai)])
+        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    async def _agenerate(  # type: ignore[override]
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+
+def test_portfolio_answer_invokes_mcp_tools_and_returns_final_text():
+    """A tool-calling LLM must drive the ReAct loop, then the final AIMessage wins.
+
+    The fake LLM asks the agent to call ``rag_search`` once; the loop
+    must invoke the (stub) tool, append a ToolMessage, and then the
+    second invocation yields the user-visible final answer. Proves
+    that the Portfolio agent correctly wires MCP-style tools.
+    """
+    call_log: List[Dict[str, Any]] = []
+
+    @tool("rag_search")
+    def rag_search(query: str) -> str:
+        """Search the Fincent knowledge base."""
+        call_log.append({"query": query})
+        return "[stub] ETFs trade on an exchange like stocks."
+
+    llm = _ScriptedToolCallingLLM(
+        responses=["Your holdings (AAA, CASH) complement a simple ETF strategy."],
+        first_turn_tool="rag_search",
+        first_turn_args={"query": "ETF basics"},
+    )
+
+    response = portfolio_answer(
+        "How do ETFs work given my current holdings?",
+        llm=llm,
+        snapshot=_synthetic_snapshot(),
+        tools=[rag_search],
+    )
+    assert response.agent == AgentName.PORTFOLIO
+    assert "AAA" in response.content or "ETF" in response.content
+    assert response.metadata["tool_count"] == 1
+    assert response.metadata["tool_names"] == ["rag_search"]
+    assert call_log == [{"query": "ETF basics"}]
+
+
+def test_portfolio_answer_tool_free_path_runs_without_tools():
+    """Passing ``tools=[]`` must short-circuit past ``bind_tools``.
+
+    Guarantees that operators with MCP disabled (or missing the
+    ``langchain-mcp-adapters`` dependency) still get a working
+    portfolio answer from the raw LLM output.
+    """
+    response = portfolio_answer(
+        "What's my total balance?",
+        llm=_fake_llm("Your total balance is $140."),
+        snapshot=_synthetic_snapshot(),
+        tools=[],
+    )
+    assert response.agent == AgentName.PORTFOLIO
+    assert "$140" in response.content
+    assert response.metadata["tool_count"] == 0
+    assert response.metadata["tool_names"] == []
+
+
+def test_portfolio_answer_handles_unknown_tool_gracefully():
+    """Unknown tool names feed an error back instead of crashing."""
+    llm = _ScriptedToolCallingLLM(
+        responses=["Could not verify that -- I answered from the snapshot."],
+        first_turn_tool="some_missing_tool",
+        first_turn_args={"x": 1},
+    )
+    response = portfolio_answer(
+        "What's my AAA ticker worth on the market today?",
+        llm=llm,
+        snapshot=_synthetic_snapshot(),
+        tools=[],  # no tool actually registered
+    )
+    assert response.agent == AgentName.PORTFOLIO
+    assert "snapshot" in response.content.lower()
+
+
+# ---------------------------------------------------------------------
+# mcp_tools loader
+# ---------------------------------------------------------------------
+
+
+def test_get_portfolio_tools_disabled_in_tests_returns_empty_list():
+    """With both MCP servers disabled (conftest default), loader returns []."""
+    reset_portfolio_tools_cache()
+    tools = get_portfolio_tools(force_refresh=True)
+    assert tools == []
+
+
+def test_get_portfolio_tools_caches_between_calls(monkeypatch):
+    """A second call must not re-enter the async loader if cache is warm."""
+    import src.agents.portfolio.mcp_tools as mcp_mod
+
+    reset_portfolio_tools_cache()
+    # Warm the cache with a sentinel.
+    mcp_mod._TOOLS_CACHE = ["sentinel"]  # type: ignore[assignment]
+
+    called = {"n": 0}
+
+    def _boom(*_args: Any, **_kwargs: Any) -> List[Any]:
+        called["n"] += 1
+        raise AssertionError("cache was bypassed")
+
+    monkeypatch.setattr(mcp_mod, "_build_client_specs", _boom)
+    out = mcp_mod.get_portfolio_tools()
+    assert out == ["sentinel"]
+    assert called["n"] == 0
+
+
+def test_portfolio_agent_uses_cached_mcp_tools_when_tools_arg_absent(monkeypatch):
+    """When ``tools`` is omitted, the agent pulls from ``get_portfolio_tools``.
+
+    We stub the loader to return a dummy empty list and verify the
+    agent recorded ``tool_count=0`` rather than silently using the
+    live-subprocess path. This keeps the wiring covered even in the
+    fully-disabled default.
+    """
+    import src.agents.portfolio.agent as agent_mod
+
+    monkeypatch.setattr(agent_mod, "get_portfolio_tools", lambda _cfg: [])
+    response = portfolio_answer(
+        "How many accounts do I have?",
+        llm=_fake_llm("You have 2 accounts."),
+        snapshot=_synthetic_snapshot(),
+    )
+    assert response.metadata["tool_count"] == 0
+    assert response.metadata["tool_names"] == []
+    assert "2 accounts" in response.content

@@ -14,12 +14,19 @@ The conversation is identified by a ``session_id`` query parameter
 
 The UI is organised as two tabs:
 
-* **QnA**       -- routes questions through the central planner
-                   (typically into the Q&A agent).
-* **Portfolio** -- pins ``intent_hint="portfolio"`` so every message
-                   goes straight to the Portfolio agent. A right-hand
-                   sidebar renders plotly graphics for the user's
-                   static portfolio snapshot.
+* **QnA**       -- routes questions through the central planner.
+                   Generic non-financial chit-chat is answered by
+                   the central agent; generic financial questions
+                   route to the Q&A agent; anything that touches
+                   the user's own portfolio routes to the Portfolio
+                   agent.
+* **Portfolio** -- same central-planner routing as QnA, plus a
+                   right-hand graphics panel rendering plotly
+                   charts / tables for the user's static portfolio
+                   snapshot. This tab is intended for portfolio
+                   deep-dives but will still correctly fall back to
+                   the Q&A agent if the user asks a purely generic
+                   financial question here.
 
 Each tab uses its own LangGraph thread (``<session>-qna`` /
 ``<session>-portfolio``) so the two transcripts are independent and
@@ -62,6 +69,27 @@ DEFAULT_SESSION_ID: str = "default-session"
 # independent even though they share a base ``?session_id=``.
 _QNA_SUFFIX: str = "qna"
 _PORTFOLIO_SUFFIX: str = "portfolio"
+
+
+# CSS overrides applied once per page load. Streamlit's ``st.tabs``
+# renders labels inside a BaseWeb tab list; bumping the ``p`` font
+# size and colour inside ``data-testid="stMarkdownContainer"`` is the
+# documented, version-stable way to restyle the labels without
+# reaching into internal class names. Royal blue (#4169E1) keeps the
+# two tab headers visually prominent at the top of the page.
+_TAB_LABEL_CSS: str = """
+<style>
+.stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+    font-size: 1.5rem;
+    color: #4169E1;
+    font-weight: 700;
+}
+.stTabs [data-baseweb="tab-list"] button[aria-selected="true"]
+    [data-testid="stMarkdownContainer"] p {
+    color: #1E3A8A;
+}
+</style>
+"""
 
 
 # ---------------------------------------------------------------------
@@ -203,10 +231,75 @@ def _render_rag_banner(api_base_url: str) -> None:
 # ---------------------------------------------------------------------
 
 
+def _agents_involved(
+    plan_payload: Dict, agent_payloads: List[Dict]
+) -> List[str]:
+    """Compute the list of agents that actually contributed to the answer.
+
+    The single source of truth is the ``agent_responses`` list the
+    backend returned: each entry is produced by exactly one agent that
+    ran for this turn, so if the Portfolio agent alone answered, only
+    ``"portfolio"`` appears here. When no specialists ran (the planner
+    set ``handled_by_central: true``) we fall back to reporting the
+    central agent. Order is preserved, duplicates are removed.
+    """
+    seen: set[str] = set()
+    agents: List[str] = []
+    for ar in agent_payloads:
+        name = str(ar.get("agent", "")).strip()
+        if name and name not in seen:
+            seen.add(name)
+            agents.append(name)
+    if agents:
+        return agents
+    if bool(plan_payload.get("handled_by_central")):
+        return ["central"]
+    return []
+
+
+def _tools_called(agent_payloads: List[Dict]) -> List[str]:
+    """Collect ``metadata.tool_names`` from every agent response.
+
+    Currently only the Portfolio agent publishes ``tool_names`` (list
+    of MCP tools it invoked during its ReAct loop); other agents omit
+    the key, so this returns ``[]`` for turns that did not use tools.
+    Order and duplicates are preserved across agents so the user can
+    see the exact call sequence.
+    """
+    tools: List[str] = []
+    for ar in agent_payloads:
+        meta = ar.get("metadata") or {}
+        raw = meta.get("tool_names")
+        if not isinstance(raw, list):
+            continue
+        for name in raw:
+            if isinstance(name, str) and name:
+                tools.append(name)
+    return tools
+
+
 def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> None:
-    """Show routing details for the most recent assistant turn."""
+    """Show routing details for the most recent assistant turn.
+
+    The expander is ordered for quick diagnosis:
+      1. Which agent(s) actually produced the user-visible answer.
+      2. Which tools those agents called (currently the Portfolio
+         agent's MCP tool list).
+      3. The raw routing plan the central planner emitted.
+      4. Each specialist's individual reply, for full traceability.
+    """
+    agents = _agents_involved(plan_payload, agent_payloads)
+    tools = _tools_called(agent_payloads)
+
     with st.expander("Routing details", expanded=False):
+        agents_line = ", ".join(agents) if agents else "(none)"
+        tools_line = ", ".join(tools) if tools else "(none)"
+        st.markdown(f"**Agents involved:** {agents_line}")
+        st.markdown(f"**Tools called:** {tools_line}")
+
+        st.markdown("**Plan**")
         st.json(plan_payload)
+
         st.markdown("**Agent responses**")
         for ar in agent_payloads:
             st.markdown(f"- **{ar.get('agent', '?')}** -- {ar.get('content', '')}")
@@ -327,6 +420,13 @@ def _render_portfolio_tab(api_base_url: str, session_id: str) -> None:
     the tab's top level, which means Streamlit pins it to the bottom
     of the page -- exactly the same flow as the single-pane QnA tab.
     No columns, no fixed-height containers, no ``st.rerun()`` dance.
+
+    The tab does NOT pin an ``intent_hint`` any more: the central
+    planner decides which specialist should run so generic financial
+    questions asked here still reach the right agent, while any
+    mention of the user's own holdings routes to the Portfolio agent
+    as expected. The user-visible intro intentionally does NOT expose
+    this routing detail -- it just describes what the tab is for.
     """
     try:
         snapshot = load_portfolio()
@@ -344,11 +444,11 @@ def _render_portfolio_tab(api_base_url: str, session_id: str) -> None:
         suffix=_PORTFOLIO_SUFFIX,
         placeholder="Ask about your portfolio...",
         input_key="portfolio_chat_input",
-        intent_hint="portfolio",
+        intent_hint=None,
         intro=(
-            "Ask the Portfolio agent about your accounts, balances, "
-            "asset allocation, or recent transactions. The graphics "
-            "above show the same snapshot the agent sees."
+            "Ask about your accounts, balances, asset allocation, or "
+            "recent transactions. The graphics above summarize your "
+            "current holdings."
         ),
     )
 
@@ -369,6 +469,8 @@ def main() -> None:
 
     api_base_url = _resolve_api_base_url()
     session_id = _resolve_session_id()
+
+    st.markdown(_TAB_LABEL_CSS, unsafe_allow_html=True)
 
     _render_sidebar(api_base_url, session_id)
 

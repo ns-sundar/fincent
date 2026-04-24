@@ -51,6 +51,44 @@ def test_plan_route_specialist_qna():
     assert plan.intents == [Intent.QNA]
 
 
+def test_plan_route_personal_finance_routes_to_portfolio_only():
+    """Portfolio-tagged questions must route ONLY to the Portfolio agent.
+
+    Under the new orchestration rules, any question that touches the
+    user's own holdings must go to the Portfolio agent alone (even if
+    it also asks a general concept) -- the Portfolio agent has its
+    own RAG tool for generic context, so fanning out to Q&A would
+    just duplicate work.
+    """
+    payload = json.dumps(
+        {
+            "handled_by_central": False,
+            "intents": ["portfolio"],
+            "rationale": "User references 'my holdings'.",
+        }
+    )
+    plan = plan_route(
+        "Explain dividend taxation for my current holdings",
+        llm=_fake_llm(payload),
+    )
+    assert plan.handled_by_central is False
+    assert plan.intents == [Intent.PORTFOLIO]
+
+
+def test_plan_route_non_financial_small_talk_handled_centrally():
+    """Non-financial chit-chat should be answered by the central agent."""
+    payload = json.dumps(
+        {
+            "handled_by_central": True,
+            "intents": ["user_generic"],
+            "rationale": "Greeting.",
+        }
+    )
+    plan = plan_route("Hi there!", llm=_fake_llm(payload))
+    assert plan.handled_by_central is True
+    assert plan.intents == [Intent.USER_GENERIC]
+
+
 def test_plan_route_strips_code_fence():
     """The router must tolerate ```json ... ``` fences."""
     payload = (

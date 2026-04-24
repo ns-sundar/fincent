@@ -16,8 +16,10 @@ separate process.
 
 > Status: initial scaffold. The central orchestrator is fully wired;
 > the Q&A agent is RAG-enabled (FAISS + LangChain ingestion of the
-> curated catalog at `rag/fincent_rag_articles.json`); three additional
-> specialist agents are stubbed for future iterations.
+> curated catalog at `rag/fincent_rag_articles.json`); the Portfolio
+> agent is a ReAct tool-caller wired to two MCP servers (OpenBB for
+> live market data, Fincent's RAG sidecar for curated documents);
+> two additional specialist agents are stubbed for future iterations.
 
 ---
 
@@ -59,6 +61,26 @@ The central agent has three responsibilities:
 
 LangGraph's `Send` API is used to fan out to multiple specialist
 nodes when the planner picks more than one.
+
+### Routing rules (both tabs)
+
+Routing is **orchestrated by the central planner for every turn, in
+both the Q&A and Portfolio tabs**. The Portfolio tab is _not_ pinned
+to the Portfolio agent — it uses the same router as Q&A, so generic
+financial questions asked there are still handled by the Q&A agent,
+and personal-portfolio questions asked in the Q&A tab correctly reach
+the Portfolio agent.
+
+| Query class | Example | Handled by |
+|---|---|---|
+| Non-financial chit-chat | “Hi, what's your name?” | **Central** (direct answer) |
+| App-info | “What can this app do?” | **Central** (direct answer) |
+| Generic financial, no personal data | “What is an ETF?”, “How are dividends taxed?” | **Q&A agent** (RAG over curated corpus) |
+| Touches the user's own portfolio (even if it also asks a general concept) | “Am I over-concentrated in AAPL?”, “Explain dividend taxation for my holdings.” | **Portfolio agent** (ReAct; may call OpenBB or RAG tools itself) |
+
+Personal-finance questions never fan out to both Q&A and Portfolio:
+the Portfolio agent has its own `rag_search` tool for generic context,
+so routing to it alone avoids duplicate work.
 
 ### Session persistence
 
@@ -184,6 +206,44 @@ The API still parses `[n]` from the full reply and fills
 tests get a reliable structured list even if the model’s `## Sources`
 wording differs slightly.
 
+### Portfolio agent (personal finance, ReAct + MCP tools)
+
+The Portfolio agent answers questions grounded in the user's own
+account / holding / transaction snapshot (seeded on first boot from
+`data/default_portfolio/` into `/data/portfolio/`). Under the hood it
+runs a **ReAct tool-calling loop** and can reach for two families of
+**MCP tools**, both launched as `stdio` subprocesses so there are no
+extra ports to manage:
+
+1. **OpenBB MCP tools** — real-world market data (live quotes,
+   historical prices, company news, ETF holdings, economic
+   indicators, crypto, FX, …) via the official
+   [`openbb-mcp-server`](https://pypi.org/project/openbb-mcp-server/).
+   The OpenBB Platform ships free providers out of the box (yfinance,
+   SEC, FRED, …); other providers (e.g. Financial Modeling Prep) can
+   be installed as OpenBB extensions and configured with API keys in
+   `~/.openbb_platform/user_settings.json`. The advertised tool set is
+   restricted to a handful of relevant categories
+   (`equity,news,etf,currency,economy,crypto`) so the LLM isn't
+   overwhelmed by hundreds of tools.
+2. **Fincent RAG MCP tool** — the same `rag_search` tool the Q&A
+   agent uses internally, exposed here via the existing
+   `src/rag/mcp_server.py` so the Portfolio agent can pull in curated
+   regulatory / educational context (IRS rules, ETF mechanics,
+   Bogleheads guides, …) when a question combines portfolio data with
+   a general financial concept.
+
+Both servers are launched via
+[`langchain-mcp-adapters`](https://pypi.org/project/langchain-mcp-adapters/)
+`MultiServerMCPClient`. Tools are loaded **once per process** and
+cached; if any of `langchain-mcp-adapters`, `openbb-mcp-server`, or
+`openbb` is missing (or the server is disabled), the agent degrades
+to a single LLM call grounded in the snapshot — i.e. identical to the
+pre-tooling behaviour — so the app always starts.
+
+The tool registry is controlled by `portfolio.tools.*` in
+`config.yaml`; see below for the relevant env overrides.
+
 ### MCP server (optional sidecar)
 
 The FAISS vector_db is also wrapped in a **Model Context Protocol**
@@ -282,6 +342,16 @@ export FINCENT__RAG__MMR_LAMBDA=0.5
 export FINCENT__RAG__MCP_SERVER__ENABLED=false
 export FINCENT__RAG__MCP_SERVER__TRANSPORT=stdio   # or "streamable-http"
 export FINCENT__RAG__MCP_SERVER__TOOL_NAME=rag_search
+
+# Portfolio agent MCP tools (stdio subprocesses)
+# OpenBB Platform -- real-world market data via yfinance + SEC + FRED + ...
+export FINCENT__PORTFOLIO__TOOLS__OPENBB__ENABLED=true
+export FINCENT__PORTFOLIO__TOOLS__OPENBB__COMMAND=openbb-mcp
+# Fincent RAG MCP server -- the curated vector_db from above, exposed as a tool
+export FINCENT__PORTFOLIO__TOOLS__RAG__ENABLED=true
+export FINCENT__PORTFOLIO__TOOLS__RAG__COMMAND=python
+# Provider API keys for OpenBB live in ~/.openbb_platform/user_settings.json;
+# the free providers (yfinance, SEC, FRED, ...) work with no key.
 ```
 
 The only **required** environment variable is:

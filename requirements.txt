@@ -37,6 +37,20 @@ tiktoken>=0.7.0
 # sidecar is launched; the in-process Q&A agent does not require it.
 mcp>=1.2.0
 
+# --- Portfolio agent tools (MCP) ---
+# LangChain adapters that convert MCP tool definitions into LangChain
+# ``BaseTool`` objects. Used by the Portfolio agent to call the OpenBB
+# MCP server and the Fincent RAG MCP server as tools.
+langchain-mcp-adapters>=0.1.9,<0.2
+# OpenBB Platform MCP server (real-world financial data). Launched as
+# a subprocess in stdio mode by the Portfolio agent's MCP client.
+# ``openbb`` is the Platform meta-package; it pulls in yfinance (free,
+# no key) and other default providers. Additional providers such as
+# FinancialModelingPrep can be installed via their own extras and
+# configured with API keys in ``~/.openbb_platform/user_settings.json``.
+openbb-mcp-server>=1.4.0
+openbb>=4.3.0
+
 # --- Config / data ---
 pydantic>=2.7.0
 pydantic-settings>=2.4.0

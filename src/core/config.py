@@ -145,6 +145,39 @@ class RagConfig(BaseModel):
     mcp_server: McpServerConfig = McpServerConfig()
 
 
+class PortfolioMcpServerSpec(BaseModel):
+    """Spawn spec for a single MCP tool server consumed by the Portfolio agent.
+
+    Only the stdio transport is wired today: the Portfolio agent's
+    MCP client (see :mod:`src.agents.portfolio.mcp_tools`) launches a
+    subprocess per tool invocation, so the server advertises its
+    tool list on stdin/stdout. Keep ``command`` resolvable on
+    ``$PATH`` inside whichever environment the FastAPI process runs
+    in (HF Spaces, local venv, etc.).
+    """
+
+    enabled: bool = False
+    command: str = ""
+    args: List[str] = Field(default_factory=list)
+    env: Dict[str, str] = Field(default_factory=dict)
+
+
+class PortfolioToolsConfig(BaseModel):
+    """Container for the Portfolio agent's MCP tool server specs.
+
+    Each entry describes one stdio MCP server. If every entry is
+    ``enabled: false`` the agent falls back to the legacy direct-LLM
+    answer path (no tool calls). Missing entries are treated as
+    disabled so operators can drop whole sections in ``config.yaml``
+    without breaking validation.
+    """
+
+    # OpenBB Platform MCP server -- real-world financial data tools.
+    openbb: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+    # Fincent's own RAG MCP server (FAISS vector_db as an MCP tool).
+    rag: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+
+
 class PortfolioConfig(BaseModel):
     """Settings for the Portfolio agent.
 
@@ -163,6 +196,11 @@ class PortfolioConfig(BaseModel):
     # Read-only seed shipped in the repo. Relative paths resolve
     # against the project root.
     seed_path: str = "data/default_portfolio"
+
+    # MCP tool servers advertised to the Portfolio agent at answer
+    # time. Loaded lazily on first use and cached for the rest of the
+    # process lifetime.
+    tools: PortfolioToolsConfig = PortfolioToolsConfig()
 
 
 class AppConfig(BaseModel):

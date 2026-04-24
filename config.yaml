@@ -151,6 +151,40 @@ portfolio:
   # Repo-relative read-only seed. Do not edit at runtime -- it is the
   # canonical "default user" snapshot shipped with the code.
   seed_path: "data/default_portfolio"
+  # MCP tool servers the Portfolio agent can invoke when answering a
+  # question. Tools are loaded lazily on first use via langchain-
+  # mcp-adapters and cached for the process lifetime. Each spec
+  # describes a stdio MCP server; the agent will spawn a subprocess
+  # per tool call (stateless sessions). Flip ``enabled: false`` to
+  # skip loading a given server; if all servers are disabled the
+  # agent falls back to the legacy direct-LLM answer path.
+  tools:
+    # OpenBB Platform MCP server -- real-world financial data backed
+    # by yfinance + SEC + FRED + other free providers out of the box.
+    # Command is whatever ``openbb-mcp`` resolves to on $PATH (the
+    # ``openbb-mcp-server`` pip package installs it).
+    openbb:
+      enabled: true
+      command: "openbb-mcp"
+      # Restrict the advertised tool categories so the LLM does not
+      # see hundreds of tools at once. Override for broader access.
+      args:
+        - "--transport"
+        - "stdio"
+        - "--default-categories"
+        - "equity,news,etf,currency,economy,crypto"
+      env: {}
+    # Fincent's own RAG MCP server (same FAISS vector_db the Q&A
+    # agent queries). Spawned as a stdio subprocess so no extra port
+    # management is required.
+    rag:
+      enabled: true
+      command: "python"
+      args:
+        - "-m"
+        - "src.rag.mcp_server"
+      env:
+        FINCENT__RAG__MCP_SERVER__TRANSPORT: "stdio"
 
 checkpointer:
   # LangGraph persists the per-thread state (messages, plan, etc.) so

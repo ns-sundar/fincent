@@ -19,37 +19,63 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
       - app_info       -> Questions about THIS application: what it
                           can do, how to use it, who built it,
                           version, supported features, etc.
-      - user_generic   -> Greetings, small talk, meta questions about
-                          the user themselves that do not require
-                          financial expertise (e.g. "what's my name",
-                          "how are you").
-      - qna            -> Generic (NON-personal) financial questions:
+      - user_generic   -> NON-financial chit-chat: greetings, small
+                          talk, meta questions about the user
+                          themselves ("what's my name", "how are
+                          you"), and any general-knowledge question
+                          that has nothing to do with finance or the
+                          user's portfolio.
+      - qna            -> GENERIC (NON-personal) FINANCIAL questions:
                           stocks, bonds, cash, ETFs, mutual funds,
                           general portfolio theory, investment risk,
                           market mechanics, brokers, general IRS/tax
-                          rules. NOT live prices, NOT personal
-                          portfolio, NOT planning, NOT personal tax
-                          advice.
-      - portfolio      -> Questions about the USER'S OWN portfolio:
-                          their accounts, holdings, current balances,
-                          asset-class split (stocks / bonds / cash),
-                          concentration, recent transactions / buys
-                          / sells / deposits / dividends, and similar
-                          grounded queries about the user's personal
-                          financial data.
+                          rules, product definitions. These do NOT
+                          involve the user's own accounts / holdings
+                          / transactions.
+      - portfolio      -> Any question that TOUCHES the user's OWN
+                          portfolio -- accounts, holdings, balances,
+                          asset-class split, concentration, recent
+                          transactions, OR the live/real-world value
+                          of the user's positions, OR any financial
+                          concept applied to the user's own data.
+                          Signals: first-person words ("my", "I",
+                          "mine", "ours"), references to accounts /
+                          holdings / tickers the user owns, or a
+                          request to combine general finance concepts
+                          with the user's personal data. The Portfolio
+                          agent itself can pull in general financial
+                          context via tools, so always route personal
+                          questions to PORTFOLIO rather than fanning
+                          out to both.
       - agent_three    -> RESERVED (not yet implemented).
       - agent_four     -> RESERVED (not yet implemented).
       - unknown        -> Use only when nothing else fits.
 
-    Rules:
-      1. If the question is purely about the application itself or
-         is generic user chit-chat, set "handled_by_central": true and
-         pick "app_info" or "user_generic" as the only intent.
-      2. Otherwise set "handled_by_central": false and list every
-         specialist agent that should respond. You MAY list more than
-         one when a question naturally spans multiple specialists.
-      3. Never invent intents that are not in the list above.
-      4. Be concise in "rationale" (one short sentence).
+    Routing rules:
+      1. If the question is purely about the application itself, set
+         "handled_by_central": true and emit "app_info".
+      2. If the question is non-financial chit-chat, set
+         "handled_by_central": true and emit "user_generic".
+      3. If the question involves the user's own portfolio in any
+         way -- even if it ALSO asks a general financial concept --
+         set "handled_by_central": false and emit ONLY "portfolio".
+         Do not also list "qna"; the Portfolio agent has a retrieval
+         tool for generic context.
+      4. If the question is a generic financial question and does NOT
+         reference the user's personal data, set
+         "handled_by_central": false and emit ONLY "qna".
+      5. Never invent intents that are not in the list above.
+      6. Be concise in "rationale" (one short sentence).
+
+    Worked examples:
+      - "What is an ETF?"                       -> qna
+      - "How are dividends taxed?"              -> qna
+      - "How is my portfolio allocated?"        -> portfolio
+      - "Am I over-concentrated in AAPL?"       -> portfolio
+      - "What's AAPL worth in my account today?"-> portfolio
+      - "Explain dividend taxation for my holdings" -> portfolio
+      - "What can this app do?"                 -> app_info (central)
+      - "Hello, who are you?"                   -> user_generic (central)
 
     Respond with a single JSON object that matches this schema:
 
