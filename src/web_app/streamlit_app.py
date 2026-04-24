@@ -59,6 +59,7 @@ from src.web_app.api_client import (
     rag_status,
     reset_thread,
 )
+from src.web_app.markdownutil import sanitize_streamlit_markdown
 from src.web_app.portfolio_view import render_portfolio_panel
 
 # Hardcoded fallback when the visitor does not supply ``?session_id=``.
@@ -186,14 +187,25 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
                 st.rerun()
 
         st.markdown("---")
+        qna_tid = html.escape(_thread_id_for(session_id, _QNA_SUFFIX), quote=True)
+        port_tid = html.escape(
+            _thread_id_for(session_id, _PORTFOLIO_SUFFIX), quote=True
+        )
         st.markdown(
             f"<p style='font-size:0.75rem;color:#6b7280;line-height:1.5;margin:0;'>"
             f"<span style='color:#374151;font-weight:600;'>Backend</span> · "
             f"<span style='word-break:break-all;'>{url_safe}</span><br/>"
             f"API {api_line}<br/>"
-            f"<span style='color:#374151;font-weight:600;'>Session</span> · "
-            f"<span style='word-break:break-all;'>{sid_safe}</span></p>",
+            f"<span style='color:#374151;font-weight:600;'>URL session</span> · "
+            f"<span style='word-break:break-all;'>{sid_safe}</span><br/>"
+            f"<span style='color:#374151;font-weight:600;'>QnA thread</span> · "
+            f"<span style='word-break:break-all;'>{qna_tid}</span><br/>"
+            f"<span style='color:#374151;font-weight:600;'>Portfolio thread</span> · "
+            f"<span style='word-break:break-all;'>{port_tid}</span></p>",
             unsafe_allow_html=True,
+        )
+        st.caption(
+            "Tip: open `?session_id=my-id` in the URL for a separate conversation pair."
         )
 
 
@@ -258,18 +270,18 @@ def _agents_involved(
 
 
 def _tools_called(agent_payloads: List[Dict]) -> List[str]:
-    """Collect ``metadata.tool_names`` from every agent response.
+    """Collect actually invoked MCP tools from each agent response.
 
-    Currently only the Portfolio agent publishes ``tool_names`` (list
-    of MCP tools it invoked during its ReAct loop); other agents omit
-    the key, so this returns ``[]`` for turns that did not use tools.
-    Order and duplicates are preserved across agents so the user can
-    see the exact call sequence.
+    The Portfolio agent sets ``metadata.tools_invoked`` (names the ReAct
+    loop executed, in order). Legacy payloads only had ``tool_names``
+    (the full bound tool list), which is not the same as calls; we
+    ignore ``tool_names`` here so the expander label "Tools called"
+    stays truthful.
     """
     tools: List[str] = []
     for ar in agent_payloads:
         meta = ar.get("metadata") or {}
-        raw = meta.get("tool_names")
+        raw = meta.get("tools_invoked")
         if not isinstance(raw, list):
             continue
         for name in raw:
@@ -302,14 +314,15 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
 
         st.markdown("**Agent responses**")
         for ar in agent_payloads:
-            st.markdown(f"- **{ar.get('agent', '?')}** -- {ar.get('content', '')}")
+            body = sanitize_streamlit_markdown(str(ar.get("content", "") or ""))
+            st.markdown(f"- **{ar.get('agent', '?')}** — {body}")
 
 
 def _render_history(history: List[Dict[str, str]]) -> None:
     """Replay past turns in chronological order (oldest first)."""
     for turn in history:
         with st.chat_message(turn["role"]):
-            st.markdown(turn["content"])
+            st.markdown(sanitize_streamlit_markdown(turn["content"] or ""))
 
 
 def _run_chat_turn(
@@ -331,7 +344,7 @@ def _run_chat_turn(
     history_key = _history_state_key(suffix)
 
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(sanitize_streamlit_markdown(user_input))
 
     with st.chat_message("assistant"):
         placeholder = st.empty()
@@ -347,10 +360,12 @@ def _run_chat_turn(
             placeholder.error(str(exc))
             return
 
-        placeholder.markdown(response.answer or "(no answer produced)")
+        placeholder.markdown(
+            sanitize_streamlit_markdown(response.answer or "(no answer produced)")
+        )
         _render_plan_expander(
-            response.plan.model_dump(),
-            [ar.model_dump() for ar in response.agent_responses],
+            response.plan.model_dump(mode="json"),
+            [ar.model_dump(mode="json") for ar in response.agent_responses],
         )
 
     st.session_state[history_key].append({"role": "user", "content": user_input})

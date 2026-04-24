@@ -186,6 +186,35 @@ def test_seed_portfolio_falls_back_when_target_not_writable(tmp_path):
 
 
 # ---------------------------------------------------------------------
+# OpenBB arg defaults (provider)
+# ---------------------------------------------------------------------
+
+
+def test_merge_openbb_tool_args_adds_yfinance_for_equity_price_quote():
+    from src.agents.portfolio.agent import _merge_openbb_tool_args
+
+    assert _merge_openbb_tool_args("equity_price_quote", {"symbol": "AAPL"}) == {
+        "symbol": "AAPL",
+        "provider": "yfinance",
+    }
+    assert _merge_openbb_tool_args(
+        "equity_price_quote",
+        {"symbol": "AAPL", "provider": "fmp"},
+    ) == {"symbol": "AAPL", "provider": "yfinance"}
+    assert _merge_openbb_tool_args("rag_search", {"query": "x"}) == {"query": "x"}
+
+
+def test_merge_openbb_respects_allow_keyed_providers_env(monkeypatch):
+    from src.agents.portfolio.agent import _merge_openbb_tool_args
+
+    monkeypatch.setenv("FINCENT_OPENBB_ALLOW_KEYED_PROVIDERS", "true")
+    assert _merge_openbb_tool_args(
+        "equity_price_quote",
+        {"symbol": "AAPL", "provider": "fmp"},
+    ) == {"symbol": "AAPL", "provider": "fmp"}
+
+
+# ---------------------------------------------------------------------
 # answer
 # ---------------------------------------------------------------------
 
@@ -204,6 +233,7 @@ def test_portfolio_answer_attribution_and_metadata():
     assert response.metadata["total_balance"] == 140.0
     assert response.metadata["allocation"]["cash"] == 40.0
     assert response.metadata["transaction_count"] == 2
+    assert response.metadata["tools_invoked"] == []
 
 
 def test_portfolio_context_block_exposes_full_transaction_list():
@@ -310,6 +340,7 @@ def test_portfolio_answer_invokes_mcp_tools_and_returns_final_text():
     assert "AAA" in response.content or "ETF" in response.content
     assert response.metadata["tool_count"] == 1
     assert response.metadata["tool_names"] == ["rag_search"]
+    assert response.metadata["tools_invoked"] == ["rag_search"]
     assert call_log == [{"query": "ETF basics"}]
 
 
@@ -330,6 +361,7 @@ def test_portfolio_answer_tool_free_path_runs_without_tools():
     assert "$140" in response.content
     assert response.metadata["tool_count"] == 0
     assert response.metadata["tool_names"] == []
+    assert response.metadata["tools_invoked"] == []
 
 
 def test_portfolio_answer_handles_unknown_tool_gracefully():
@@ -347,6 +379,7 @@ def test_portfolio_answer_handles_unknown_tool_gracefully():
     )
     assert response.agent == AgentName.PORTFOLIO
     assert "snapshot" in response.content.lower()
+    assert response.metadata["tools_invoked"] == ["some_missing_tool"]
 
 
 # ---------------------------------------------------------------------
@@ -399,4 +432,5 @@ def test_portfolio_agent_uses_cached_mcp_tools_when_tools_arg_absent(monkeypatch
     )
     assert response.metadata["tool_count"] == 0
     assert response.metadata["tool_names"] == []
+    assert response.metadata["tools_invoked"] == []
     assert "2 accounts" in response.content

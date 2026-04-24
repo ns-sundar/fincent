@@ -36,6 +36,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.agents.portfolio.mcp_tools import (
+    start_portfolio_mcp_sessions,
+    stop_portfolio_mcp_sessions,
+)
 from src.agents.portfolio.seed import seed_portfolio_if_needed
 from src.core.config import AppConfig, get_config
 from src.core.schemas import QueryRequest, QueryResponse
@@ -115,6 +119,11 @@ def _build_lifespan(cfg: AppConfig):
         except Exception:  # noqa: BLE001 -- never block startup
             _logger.exception("Portfolio seeding failed; continuing startup")
 
+        try:
+            await start_portfolio_mcp_sessions(cfg)
+        except Exception:  # noqa: BLE001 -- never block RAG / serving
+            _logger.exception("Portfolio MCP startup failed; continuing without tools")
+
         _logger.info("RAG lifespan: starting ingestion (enabled=%s)", cfg.rag.enabled)
         try:
             # ingest_if_needed is synchronous + potentially long-running
@@ -137,7 +146,10 @@ def _build_lifespan(cfg: AppConfig):
         # on its next use.
         reset_default_retriever()
         yield
-        # No explicit shutdown work for RAG today.
+        try:
+            await stop_portfolio_mcp_sessions()
+        except Exception:  # noqa: BLE001
+            _logger.exception("Portfolio MCP shutdown failed")
 
     return _lifespan
 

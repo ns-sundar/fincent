@@ -56,7 +56,6 @@ def _accounts_dataframe(snapshot: PortfolioSnapshot) -> pd.DataFrame:
                 "Account": acc.name,
                 "Type": acc.type.capitalize(),
                 "Broker": acc.broker,
-                "Currency": acc.currency,
                 "Balance": acc.balance,
             }
         )
@@ -107,36 +106,39 @@ def _accounts_table_figure(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(
         data=[
             go.Table(
-                columnwidth=[260, 90, 110, 90, 140],
+                columnwidth=[140, 50, 65, 85],
                 header=dict(
                     values=[
                         "<b>Account</b>",
                         "<b>Type</b>",
                         "<b>Broker</b>",
-                        "<b>Currency</b>",
                         "<b>Balance</b>",
                     ],
                     fill_color="#1f2937",
-                    font=dict(color="white", size=12),
+                    font=dict(color="white", size=11),
                     align="left",
+                    height=26,
                 ),
                 cells=dict(
                     values=[
                         df["Account"].tolist(),
                         df["Type"].tolist(),
                         df["Broker"].tolist(),
-                        df["Currency"].tolist(),
                         balances,
                     ],
                     fill_color=[["#f9fafb", "#ffffff"] * (len(df) // 2 + 1)],
-                    align=["left", "left", "left", "left", "right"],
+                    align=["left", "left", "left", "right"],
                     font=dict(size=11),
-                    height=26,
+                    height=22,
                 ),
             )
         ]
     )
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=max(120, 36 + 28 * len(df)))
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        width=420,
+        height=max(90, 30 + 24 * len(df)),
+    )
     return fig
 
 
@@ -181,7 +183,7 @@ def _transactions_table_figure(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(
         data=[
             go.Table(
-                columnwidth=[90, 80, 70, 70, 90, 110, 110],
+                columnwidth=[60, 45, 40, 35, 50, 65, 75],
                 header=dict(
                     values=[
                         "<b>Date</b>",
@@ -193,8 +195,9 @@ def _transactions_table_figure(df: pd.DataFrame) -> go.Figure:
                         "<b>Account</b>",
                     ],
                     fill_color="#1f2937",
-                    font=dict(color="white", size=12),
+                    font=dict(color="white", size=11),
                     align="left",
+                    height=24,
                 ),
                 cells=dict(
                     values=[
@@ -216,13 +219,17 @@ def _transactions_table_figure(df: pd.DataFrame) -> go.Figure:
                         "right",
                         "left",
                     ],
-                    font=dict(size=11),
-                    height=24,
+                    font=dict(size=10),
+                    height=20,
                 ),
             )
         ]
     )
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=max(120, 32 + 26 * len(df)))
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        width=520,
+        height=max(90, 28 + 22 * len(df)),
+    )
     return fig
 
 
@@ -254,7 +261,7 @@ def render_portfolio_panel(snapshot: PortfolioSnapshot) -> None:
         else:
             st.plotly_chart(
                 _accounts_table_figure(accounts_df),
-                use_container_width=True,
+                use_container_width=False,
                 config={"displayModeBar": False},
             )
 
@@ -277,6 +284,6 @@ def render_portfolio_panel(snapshot: PortfolioSnapshot) -> None:
     else:
         st.plotly_chart(
             _transactions_table_figure(transactions_df),
-            use_container_width=True,
+            use_container_width=False,
             config={"displayModeBar": False},
         )

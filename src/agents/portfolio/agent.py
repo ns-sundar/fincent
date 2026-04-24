@@ -28,7 +28,8 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import json
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -38,7 +39,7 @@ from src.agents.portfolio.loader import (
     PortfolioSnapshot,
     load_portfolio,
 )
-from src.agents.portfolio.mcp_tools import get_portfolio_tools
+from src.agents.portfolio.mcp_tools import get_portfolio_tools, get_uvicorn_loop
 from src.agents.portfolio.prompts import (
     PORTFOLIO_CONTEXT_TEMPLATE,
     PORTFOLIO_SYSTEM_PROMPT,
@@ -49,7 +50,6 @@ from src.core.schemas import AgentName, AgentResponse
 from src.utils.logging import get_logger
 
 _logger = get_logger(__name__)
-
 
 # Hard cap on the number of tool-call iterations the ReAct loop may
 # take for one user turn. Prevents a pathological model from spinning
@@ -111,12 +111,46 @@ def _tools_by_name(tools: List[Any]) -> Dict[str, Any]:
     return out
 
 
+# When ``provider`` is omitted, OpenBB often defaults to the first
+# provider alphabetically (e.g. FMP) which requires paid API keys.
+# yfinance works without keys for many US listings.
+_OPENBB_FREE_PROVIDER_DEFAULTS: Dict[str, Dict[str, str]] = {
+    "equity_price_quote": {"provider": "yfinance"},
+    "equity_price_historical": {"provider": "yfinance"},
+}
+
+
+def _merge_openbb_tool_args(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Pin OpenBB to yfinance for key equity tools (no API key).
+
+    The LLM or MCP tool schema may supply ``provider`` as ``\"fmp\"`` or
+    ``[\"fmp\"]`` (OpenBB's alphabetical default). That bypasses
+    ``user_settings`` and triggers ``fmp_api_key`` errors. Fincent forces
+    yfinance for these tool names unless the operator opts out via
+    ``FINCENT_OPENBB_ALLOW_KEYED_PROVIDERS=true``.
+    """
+    extra = _OPENBB_FREE_PROVIDER_DEFAULTS.get(tool_name)
+    if not extra:
+        return args
+    if os.environ.get("FINCENT_OPENBB_ALLOW_KEYED_PROVIDERS", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return args
+    merged = dict(args)
+    merged["provider"] = extra["provider"]
+    return merged
+
+
 async def _ainvoke_tool(tool: Any, args: Dict[str, Any]) -> str:
     """Invoke a LangChain tool and normalise the result to a string."""
+    name = str(getattr(tool, "name", "") or "")
+    call_args = _merge_openbb_tool_args(name, dict(args or {}))
     try:
-        result = await tool.ainvoke(args or {})
+        result = await tool.ainvoke(call_args)
     except Exception as exc:  # noqa: BLE001 -- feed errors back to the LLM
-        _logger.warning("Tool %s failed: %s", getattr(tool, "name", "?"), exc)
+        _logger.warning("Tool %s failed: %s", name or "?", exc)
         return f"[tool error] {type(exc).__name__}: {exc}"
     if isinstance(result, str):
         return result
@@ -132,7 +166,7 @@ async def _arun_react_loop(
     messages: List[Any],
     *,
     max_iterations: int = _MAX_TOOL_ITERATIONS,
-) -> AIMessage:
+) -> Tuple[AIMessage, List[str]]:
     """Run a minimal ReAct tool-calling loop.
 
     Binds the tools to the chat model, asks for a reply, executes any
@@ -155,7 +189,8 @@ async def _arun_react_loop(
 
     working = list(messages)
     final: Optional[AIMessage] = None
-    for _ in range(max_iterations):
+    tools_invoked: List[str] = []
+    for iteration in range(max_iterations):
         response = await bound.ainvoke(working)
         if not isinstance(response, AIMessage):
             response = AIMessage(content=str(getattr(response, "content", response)))
@@ -168,6 +203,8 @@ async def _arun_react_loop(
 
         for call in tool_calls:
             name = str(call.get("name") or "")
+            if name:
+                tools_invoked.append(name)
             args = call.get("args") or {}
             call_id = str(call.get("id") or name or "tool")
             tool = by_name.get(name)
@@ -189,31 +226,41 @@ async def _arun_react_loop(
                 "for that question. Please try rephrasing it."
             )
         )
-    return final
+    return final, tools_invoked
 
 
 def _run_async(coro) -> Any:
     """Execute an async coroutine from sync code.
 
-    FastAPI dispatches sync routes to a threadpool, so the primary
-    call path has no running loop and ``asyncio.run`` works. If some
-    caller does own a loop (pytest-asyncio, notebooks), we fall back
-    to a worker thread with its own event loop.
+    FastAPI dispatches sync routes to a threadpool (no running loop in
+    the worker thread).  When persistent MCP sessions are live, their
+    asyncio streams belong to the uvicorn event loop; submitting the
+    coroutine to that same loop via ``run_coroutine_threadsafe`` prevents
+    cross-loop I/O deadlocks.  Falls back to ``asyncio.run`` (fresh loop)
+    when no uvicorn loop is known (e.g. CLI / no lifespan) and to a
+    worker thread when a loop is already running (pytest-asyncio).
     """
     try:
         asyncio.get_running_loop()
+        # A loop is already running (pytest-asyncio / notebook): spin a
+        # worker thread with its own loop to avoid nested-run errors.
+        def _target() -> Any:
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(_target).result()
+
     except RuntimeError:
+        # No running loop in this thread (normal FastAPI threadpool path).
+        uvicorn_loop = get_uvicorn_loop()
+        if uvicorn_loop is not None and uvicorn_loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(coro, uvicorn_loop)
+            return future.result()
         return asyncio.run(coro)
-
-    def _target() -> Any:
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(_target).result()
 
 
 # ---------------------------------------------------------------------
@@ -265,8 +312,11 @@ def answer(
         HumanMessage(content=query),
     ]
 
+    tools_invoked: List[str] = []
     try:
-        final_ai = _run_async(_arun_react_loop(llm, tools, messages))
+        final_ai, tools_invoked = _run_async(
+            _arun_react_loop(llm, tools, messages)
+        )
     except Exception as exc:  # noqa: BLE001 -- surface to aggregator
         _logger.exception("Portfolio agent tool loop failed")
         final_ai = AIMessage(
@@ -286,6 +336,7 @@ def answer(
         "transaction_count": snap.transaction_count,
         "tool_count": len(tools),
         "tool_names": tool_names,
+        "tools_invoked": tools_invoked,
     }
     return AgentResponse(
         agent=AgentName.PORTFOLIO,

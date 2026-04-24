@@ -79,6 +79,9 @@ vector_db/
 *.faiss
 *.faiss.*
 
+# OpenBB MCP: isolated HOME with yfinance-first user_settings (generated on first use)
+.fincent_openbb_home/
+
 # OS
 .DS_Store
 Thumbs.db

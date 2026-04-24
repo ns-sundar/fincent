@@ -14,9 +14,10 @@ export FINCENT__UI__API_BASE_URL="http://127.0.0.1:${API_PORT}"
 cleanup() {
   if [[ -n "${UVICORN_PID:-}" ]] && kill -0 "${UVICORN_PID}" 2>/dev/null; then
     kill "${UVICORN_PID}" 2>/dev/null || true
+    wait "${UVICORN_PID}" 2>/dev/null || true
   fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 echo "[entrypoint] Starting FastAPI on 0.0.0.0:${API_PORT}"
 python -m uvicorn src.workflow.server:app --host 0.0.0.0 --port "${API_PORT}" &
@@ -42,9 +43,13 @@ if [[ "${ready}" -ne 1 ]]; then
 fi
 
 echo "[entrypoint] API ready; starting Streamlit on 0.0.0.0:${PORT}"
-trap - EXIT
-exec streamlit run src/web_app/streamlit_app.py \
+# Foreground Streamlit (no exec) so SIGTERM/INT reaches this shell and we kill
+# uvicorn — triggers FastAPI lifespan shutdown (MCP sessions close cleanly).
+streamlit run src/web_app/streamlit_app.py \
   --server.port "${PORT}" \
   --server.address 0.0.0.0 \
   --server.headless true \
   --browser.gatherUsageStats false
+st_exit=$?
+cleanup
+exit "${st_exit}"

@@ -1,0 +1,11 @@
+{
+  "credentials": {},
+  "preferences": {},
+  "defaults": {
+    "commands": {
+      "/equity/price/quote": { "provider": "yfinance" },
+      "/equity/price/historical": { "provider": "yfinance" },
+      "/equity/price/performance": { "provider": "yfinance" }
+    }
+  }
+}

@@ -67,34 +67,46 @@ def test_agents_involved_deduplicates_preserves_order():
 # ---------------------------------------------------------------------
 
 
-def test_tools_called_aggregates_tool_names_across_agents():
-    """Tool lists from every agent response are concatenated in order."""
+def test_tools_called_aggregates_tools_invoked_across_agents():
+    """``tools_invoked`` from every agent response are concatenated in order."""
     responses = [
         {
             "agent": "portfolio",
             "content": "Your holdings include AAPL at $191.",
-            "metadata": {"tool_names": ["rag_search", "equity_price_quote"]},
+            "metadata": {"tools_invoked": ["rag_search", "equity_price_quote"]},
         },
     ]
     assert _tools_called(responses) == ["rag_search", "equity_price_quote"]
 
 
 def test_tools_called_empty_when_no_metadata():
-    """Agents that omit ``tool_names`` contribute nothing."""
+    """Agents that omit ``tools_invoked`` contribute nothing."""
     responses = [
         {"agent": "qna", "content": "An ETF is ...", "metadata": {"sources": [{}]}},
     ]
     assert _tools_called(responses) == []
 
 
-def test_tools_called_skips_non_list_tool_names():
-    """A malformed ``tool_names`` value must never crash the UI."""
+def test_tools_called_skips_non_list_tools_invoked():
+    """A malformed ``tools_invoked`` value must never crash the UI."""
     responses = [
-        {"agent": "portfolio", "content": "x", "metadata": {"tool_names": "rag_search"}},
-        {"agent": "portfolio", "content": "y", "metadata": {"tool_names": None}},
-        {"agent": "portfolio", "content": "z", "metadata": {"tool_names": ["ok_tool"]}},
+        {"agent": "portfolio", "content": "x", "metadata": {"tools_invoked": "rag_search"}},
+        {"agent": "portfolio", "content": "y", "metadata": {"tools_invoked": None}},
+        {"agent": "portfolio", "content": "z", "metadata": {"tools_invoked": ["ok_tool"]}},
     ]
     assert _tools_called(responses) == ["ok_tool"]
+
+
+def test_tools_called_ignores_legacy_tool_names_only_payloads():
+    """Bound-tool lists must not be mistaken for calls."""
+    responses = [
+        {
+            "agent": "portfolio",
+            "content": "x",
+            "metadata": {"tool_names": ["equity_quote", "rag_search"]},
+        },
+    ]
+    assert _tools_called(responses) == []
 
 
 def test_tools_called_returns_empty_for_no_responses():
