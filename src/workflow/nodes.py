@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents import agent_four, agent_three, portfolio, qna
 from src.agents.central import aggregate, answer_directly, plan_route
@@ -58,7 +58,10 @@ def planner_node(state: GraphState) -> GraphState:
     to that specialist.
     """
     query = state["query"]
-    plan = plan_route(query, intent_hint=state.get("intent_hint"))
+    msgs = list(state.get("messages") or [])
+    # Prior turns only — the last message is the current HumanMessage.
+    history = msgs[:-1] if msgs and isinstance(msgs[-1], HumanMessage) else msgs
+    plan = plan_route(query, history=history, intent_hint=state.get("intent_hint"))
     _logger.info(
         "Plan: handled_by_central=%s intents=%s",
         plan.handled_by_central,
@@ -79,8 +82,11 @@ def _make_specialist_node(intent: Intent):
 
     def _node(state: GraphState) -> GraphState:
         query = state["query"]
+        msgs = list(state.get("messages") or [])
+        # Prior turns only — the last message is the current HumanMessage.
+        history = msgs[:-1] if msgs and isinstance(msgs[-1], HumanMessage) else msgs
         try:
-            response: AgentResponse = SPECIALIST_DISPATCH[intent](query)
+            response: AgentResponse = SPECIALIST_DISPATCH[intent](query, history=history)
         except Exception as exc:  # noqa: BLE001  -- surface as agent error
             _logger.exception("Specialist %s failed", intent.value)
             response = AgentResponse(

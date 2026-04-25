@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -87,6 +87,7 @@ def _fallback_plan(reason: str) -> RoutingPlan:
 def plan_route(
     query: str,
     *,
+    history: Optional[List[Any]] = None,
     llm: Optional[BaseChatModel] = None,
     cfg: Optional[AppConfig] = None,
     intent_hint: Optional[Intent] = None,
@@ -131,6 +132,7 @@ def plan_route(
     response = llm.invoke(
         [
             SystemMessage(content=ROUTER_SYSTEM_PROMPT),
+            *list((history or [])[-6:]),
             HumanMessage(content=ROUTER_USER_TEMPLATE.format(query=query)),
         ]
     )

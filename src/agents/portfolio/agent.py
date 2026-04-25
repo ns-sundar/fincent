@@ -271,6 +271,7 @@ def _run_async(coro) -> Any:
 def answer(
     query: str,
     *,
+    history: Optional[List[Any]] = None,
     llm: Optional[BaseChatModel] = None,
     cfg: Optional[AppConfig] = None,
     snapshot: Optional[PortfolioSnapshot] = None,
@@ -309,6 +310,7 @@ def answer(
     messages: List[Any] = [
         SystemMessage(content=PORTFOLIO_SYSTEM_PROMPT),
         SystemMessage(content=context),
+        *list(history or []),
         HumanMessage(content=query),
     ]
 

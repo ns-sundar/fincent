@@ -21,7 +21,7 @@ Upgrades over the original skeleton:
 from __future__ import annotations
 
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -107,6 +107,7 @@ def _citation_metadata(docs: List[RetrievedDoc]) -> List[dict]:
 def answer(
     query: str,
     *,
+    history: Optional[List[Any]] = None,
     llm: Optional[BaseChatModel] = None,
     retriever: Optional[Retriever] = None,
     top_k: Optional[int] = None,
@@ -175,6 +176,7 @@ def answer(
                 )
             )
         )
+    messages.extend(history or [])
     messages.append(HumanMessage(content=query))
 
     response = llm.invoke(messages)

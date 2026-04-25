@@ -87,7 +87,7 @@ def _route_after_planner(state: GraphState) -> Union[str, List[Send]]:
         node_name = SPECIALIST_NODE_FOR.get(intent)
         if node_name is None:
             continue
-        sends.append(Send(node_name, {"query": state["query"]}))
+        sends.append(Send(node_name, {"query": state["query"], "messages": list(state.get("messages") or [])}))
 
     # Defensive: if nothing matched, fall through to the aggregator,
     # which will emit a polite "no answer" message.
