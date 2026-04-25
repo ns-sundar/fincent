@@ -71,6 +71,15 @@ DEFAULT_SESSION_ID: str = "default-session"
 _QNA_SUFFIX: str = "qna"
 _PORTFOLIO_SUFFIX: str = "portfolio"
 
+_QNA_SUGGESTIONS: List[str] = [
+    "What can you do for me?",
+    "Compare ETFs with mutual funds",
+    "How does the New York Stock Exchange (NYSE) work?",
+    "What exactly is a tariff and how does it affect prices?",
+    "Explain options trading",
+    "What is Adjusted Gross Income (AGI) in tax forms?",
+]
+
 
 # CSS overrides applied once per page load. Streamlit's ``st.tabs``
 # renders labels inside a BaseWeb tab list; bumping the ``p`` font
@@ -88,6 +97,19 @@ _TAB_LABEL_CSS: str = """
 .stTabs [data-baseweb="tab-list"] button[aria-selected="true"]
     [data-testid="stMarkdownContainer"] p {
     color: #1E3A8A;
+}
+/* Canned / suggestion question buttons */
+div[data-testid="stButton"] > button {
+    border: 2px solid #4169E1 !important;
+    border-radius: 8px !important;
+    color: #4169E1 !important;
+    background-color: #EEF2FF !important;
+    font-weight: 600 !important;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+div[data-testid="stButton"] > button:hover {
+    background-color: #4169E1 !important;
+    color: #FFFFFF !important;
 }
 </style>
 """
@@ -303,11 +325,26 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
     agents = _agents_involved(plan_payload, agent_payloads)
     tools = _tools_called(agent_payloads)
 
-    with st.expander("Routing details", expanded=False):
+    with st.expander("Under the hood", expanded=False):
         agents_line = ", ".join(agents) if agents else "(none)"
         tools_line = ", ".join(tools) if tools else "(none)"
         st.markdown(f"**Agents involved:** {agents_line}")
         st.markdown(f"**Tools called:** {tools_line}")
+
+        # RAG status — shown only when the QnA agent ran.
+        for ar in agent_payloads:
+            if ar.get("agent") == "qna":
+                meta = ar.get("metadata") or {}
+                if "rag_used" in meta:
+                    rag_used: bool = bool(meta["rag_used"])
+                    chunk_count: int = int(meta.get("rag_chunk_count", 0))
+                    rag_label = (
+                        f"yes ({chunk_count} chunk{'s' if chunk_count != 1 else ''} retrieved)"
+                        if rag_used
+                        else "no"
+                    )
+                    st.markdown(f"**RAG invoked:** {rag_label}")
+                break
 
         st.markdown("**Plan**")
         st.json(plan_payload)
@@ -318,11 +355,13 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
             st.markdown(f"- **{ar.get('agent', '?')}** — {body}")
 
 
-def _render_history(history: List[Dict[str, str]]) -> None:
+def _render_history(history: List[Dict]) -> None:
     """Replay past turns in chronological order (oldest first)."""
     for turn in history:
         with st.chat_message(turn["role"]):
             st.markdown(sanitize_streamlit_markdown(turn["content"] or ""))
+            if turn["role"] == "assistant" and "plan" in turn:
+                _render_plan_expander(turn["plan"], turn.get("agent_responses", []))
 
 
 def _run_chat_turn(
@@ -363,14 +402,15 @@ def _run_chat_turn(
         placeholder.markdown(
             sanitize_streamlit_markdown(response.answer or "(no answer produced)")
         )
-        _render_plan_expander(
-            response.plan.model_dump(mode="json"),
-            [ar.model_dump(mode="json") for ar in response.agent_responses],
-        )
 
     st.session_state[history_key].append({"role": "user", "content": user_input})
     st.session_state[history_key].append(
-        {"role": "assistant", "content": response.answer or ""}
+        {
+            "role": "assistant",
+            "content": response.answer or "",
+            "plan": response.plan.model_dump(mode="json"),
+            "agent_responses": [ar.model_dump(mode="json") for ar in response.agent_responses],
+        }
     )
 
 
@@ -388,6 +428,7 @@ def _render_chat_tab(
     input_key: str,
     intent_hint: Optional[str],
     intro: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
 ) -> None:
     """Render a chat tab: history on top, ``st.chat_input`` pinned at bottom.
 
@@ -401,9 +442,24 @@ def _render_chat_tab(
     if intro:
         st.markdown(intro)
 
+    # Pop any pending preset before rendering suggestions so the buttons
+    # disappear immediately on the same rerun that processes the click.
+    preset_key = f"preset_{suffix}"
+    preset: Optional[str] = st.session_state.pop(preset_key, None)
+
+    if suggestions and preset is None:
+        st.caption("Ask any general finance question. Try any of these to get started.")
+        for i in range(0, len(suggestions), 2):
+            pair = suggestions[i : i + 2]
+            cols = st.columns(len(pair))
+            for j, (col, question) in enumerate(zip(cols, pair)):
+                if col.button(question, key=f"suggest_{suffix}_{i + j}", use_container_width=True):
+                    st.session_state[preset_key] = question
+                    st.rerun()
+
     _render_history(history)
 
-    user_input = st.chat_input(placeholder, key=input_key)
+    user_input = preset or st.chat_input(placeholder, key=input_key)
     if not user_input:
         return
     _run_chat_turn(
@@ -413,6 +469,7 @@ def _render_chat_tab(
         user_input=user_input,
         intent_hint=intent_hint,
     )
+    st.rerun()
 
 
 def _render_qna_tab(api_base_url: str, session_id: str) -> None:
@@ -425,6 +482,7 @@ def _render_qna_tab(api_base_url: str, session_id: str) -> None:
         placeholder="Ask a general financial question...",
         input_key="qna_chat_input",
         intent_hint=None,
+        suggestions=_QNA_SUGGESTIONS,
     )
 
 
