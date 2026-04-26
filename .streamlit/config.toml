@@ -1,0 +1,8 @@
+[server]
+# HuggingFace Spaces runs Streamlit behind a reverse proxy.  The proxy
+# strips / rewrites headers in a way that breaks Streamlit's built-in
+# XSRF cookie check, causing file-upload POST requests to return 403.
+# Disabling the check here is safe because HF Spaces enforces its own
+# access controls at the infrastructure level.
+enableXsrfProtection = false
+enableCORS = false

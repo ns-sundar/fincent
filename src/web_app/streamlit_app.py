@@ -374,13 +374,13 @@ def _render_portfolio_upload(cfg: Any, api_base_url: str) -> None:  # noqa: ANN0
         st.markdown("---")
         acc_file = st.file_uploader(
             "accounts.json",
-            type="json",
+            type=["json", "application/json", "text/plain", "text/json"],
             key="upload_accounts",
             help="Array of account objects; see data/default_portfolio/accounts.schema.json",
         )
         txn_file = st.file_uploader(
             "transactions.json",
-            type="json",
+            type=["json", "application/json", "text/plain", "text/json"],
             key="upload_transactions",
             help="Array of transaction objects; see data/default_portfolio/transactions.schema.json",
         )
