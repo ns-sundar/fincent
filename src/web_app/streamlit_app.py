@@ -36,10 +36,13 @@ both survive reloads.
 from __future__ import annotations
 
 import html
+import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+import jsonschema
 
 # Ensure the project root is on sys.path regardless of how Streamlit was
 # launched (CLI, Docker, HuggingFace Spaces, etc.).
@@ -89,16 +92,50 @@ _QNA_SUGGESTIONS: List[str] = [
 # two tab headers visually prominent at the top of the page.
 _TAB_LABEL_CSS: str = """
 <style>
+/* ── Tab bar: flush bottom border that active tab "sits on" ──────────── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0px;
+    border-bottom: 2px solid #4169E1;
+    padding-bottom: 0;
+}
+
+/* ── Every tab button: folder-tab shape ─────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] button {
+    border: 2px solid transparent !important;
+    border-bottom: none !important;
+    border-radius: 8px 8px 0 0 !important;
+    padding: 8px 24px !important;
+    margin-right: 4px !important;
+    margin-bottom: -2px !important;   /* overlap the bar border */
+    background-color: #F1F5F9 !important;
+    transition: background-color 0.15s ease;
+}
+
+/* ── Inactive tab label ──────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     color: #4169E1;
-    font-weight: 700;
+    font-weight: 600;
+}
+
+/* ── Active tab: white background, coloured border, no bottom border ─── */
+.stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+    border-color: #4169E1 !important;
+    border-bottom-color: transparent !important;
+    background-color: #FFFFFF !important;
 }
 .stTabs [data-baseweb="tab-list"] button[aria-selected="true"]
     [data-testid="stMarkdownContainer"] p {
     color: #1E3A8A;
 }
-/* Canned / suggestion question buttons */
+
+/* ── Hover on inactive tabs ──────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] button:not([aria-selected="true"]):hover {
+    background-color: #E0E7FF !important;
+    border-color: #93C5FD !important;
+}
+
+/* ── Canned / suggestion question buttons ────────────────────────────── */
 div[data-testid="stButton"] > button {
     border: 2px solid #4169E1 !important;
     border-radius: 8px !important;
@@ -176,6 +213,30 @@ def _rehydrate_tab(api_base_url: str, session_id: str, suffix: str) -> None:
 # Sidebar / banners
 # ---------------------------------------------------------------------
 
+# JSON Schema files are stored alongside the seed portfolio data.
+_SCHEMA_DIR = _PROJECT_ROOT / "data" / "default_portfolio"
+_ACCOUNTS_SCHEMA: Dict[str, Any] = json.loads(
+    (_SCHEMA_DIR / "accounts.schema.json").read_text(encoding="utf-8")
+)
+_TRANSACTIONS_SCHEMA: Dict[str, Any] = json.loads(
+    (_SCHEMA_DIR / "transactions.schema.json").read_text(encoding="utf-8")
+)
+
+
+def _validate_portfolio_json(
+    data: Any, schema: Dict[str, Any], label: str
+) -> Optional[str]:
+    """Return an error string if *data* violates *schema*, else ``None``."""
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+    except jsonschema.ValidationError as exc:
+        path = " → ".join(str(p) for p in exc.absolute_path) or "(root)"
+        return f"{label}: {exc.message} (at {path})"
+    except jsonschema.SchemaError as exc:
+        return f"{label} schema is invalid: {exc.message}"
+    return None
+# ---------------------------------------------------------------------
+
 
 def _render_sidebar(api_base_url: str, session_id: str) -> None:
     """Render the app-wide sidebar: reset buttons, backend status."""
@@ -209,6 +270,9 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
                 st.rerun()
 
         st.markdown("---")
+        _render_portfolio_upload(cfg)
+
+        st.markdown("---")
         qna_tid = html.escape(_thread_id_for(session_id, _QNA_SUFFIX), quote=True)
         port_tid = html.escape(
             _thread_id_for(session_id, _PORTFOLIO_SUFFIX), quote=True
@@ -229,6 +293,115 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         st.caption(
             "Tip: open `?session_id=my-id` in the URL for a separate conversation pair."
         )
+
+
+def _render_portfolio_upload(cfg: Any) -> None:  # noqa: ANN001
+    """Sidebar section: upload custom accounts.json + transactions.json."""
+    with st.expander("Upload your portfolio", expanded=False):
+        data_path = Path(cfg.portfolio.data_path)
+
+        st.markdown(
+            "Upload your portfolio as an accounts file and a transactions file, "
+            "both in JSON format. Use the sample documents below to understand "
+            "the expected schema and content format for each."
+        )
+
+        # Download buttons for the read-only sample files.
+        sample_accounts = data_path / "sample-accounts.json"
+        sample_txns = data_path / "sample-transactions.json"
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if sample_accounts.exists():
+                st.download_button(
+                    label="sample-accounts.json",
+                    data=sample_accounts.read_bytes(),
+                    file_name="sample-accounts.json",
+                    mime="application/json",
+                    key="dl_sample_accounts",
+                    use_container_width=True,
+                )
+            else:
+                st.caption("_(sample-accounts.json not yet available)_")
+        with col_b:
+            if sample_txns.exists():
+                st.download_button(
+                    label="sample-transactions.json",
+                    data=sample_txns.read_bytes(),
+                    file_name="sample-transactions.json",
+                    mime="application/json",
+                    key="dl_sample_txns",
+                    use_container_width=True,
+                )
+            else:
+                st.caption("_(sample-transactions.json not yet available)_")
+
+        st.markdown("---")
+        acc_file = st.file_uploader(
+            "accounts.json",
+            type="json",
+            key="upload_accounts",
+            help="Array of account objects; see data/default_portfolio/accounts.schema.json",
+        )
+        txn_file = st.file_uploader(
+            "transactions.json",
+            type="json",
+            key="upload_transactions",
+            help="Array of transaction objects; see data/default_portfolio/transactions.schema.json",
+        )
+
+        if st.button("Apply upload", key="apply_portfolio_upload"):
+            if acc_file is None or txn_file is None:
+                st.error(
+                    "Both accounts.json and transactions.json must be uploaded together. "
+                    "Missing: "
+                    + ", ".join(
+                        n
+                        for n, f in [("accounts.json", acc_file), ("transactions.json", txn_file)]
+                        if f is None
+                    )
+                )
+                return
+
+            # Parse JSON
+            try:
+                acc_data = json.loads(acc_file.read().decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                st.error(f"accounts.json is not valid JSON: {exc}")
+                return
+            try:
+                txn_data = json.loads(txn_file.read().decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                st.error(f"transactions.json is not valid JSON: {exc}")
+                return
+
+            # Validate against schemas
+            acc_err = _validate_portfolio_json(acc_data, _ACCOUNTS_SCHEMA, "accounts.json")
+            if acc_err:
+                st.error(acc_err)
+                return
+            txn_err = _validate_portfolio_json(txn_data, _TRANSACTIONS_SCHEMA, "transactions.json")
+            if txn_err:
+                st.error(txn_err)
+                return
+
+            # Write to data_path
+            try:
+                data_path.mkdir(parents=True, exist_ok=True)
+                (data_path / "accounts.json").write_text(
+                    json.dumps(acc_data, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+                (data_path / "transactions.json").write_text(
+                    json.dumps(txn_data, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+            except OSError as exc:
+                st.error(f"Failed to write portfolio files: {exc}")
+                return
+
+            st.success(
+                f"Portfolio updated: {len(acc_data)} account(s), "
+                f"{len(txn_data)} transaction(s). "
+                "Switch to the Portfolio tab to see the changes."
+            )
 
 
 def _render_rag_banner(api_base_url: str) -> None:

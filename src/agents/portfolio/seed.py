@@ -18,6 +18,12 @@ The result:
 * The function is **idempotent**: calling it twice in a row is a
   no-op after the first call.
 
+In addition to the live data files the seeder also writes
+``sample-accounts.json`` and ``sample-transactions.json`` -- permanent,
+read-only copies of the default portfolio -- so the Streamlit UI can
+offer them as example downloads.  These sample files are only created
+once and never overwritten.
+
 The seeder is called from two places to cover every startup path:
 
 1. The FastAPI lifespan (``src.workflow.server``) -- so logs surface
@@ -28,6 +34,7 @@ The seeder is called from two places to cover every startup path:
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -39,11 +46,25 @@ _logger = get_logger(__name__)
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 
+# Source file names in seed_path → sample file names written to data_path.
+_SAMPLE_MAP: dict[str, str] = {
+    "accounts.json": "sample-accounts.json",
+    "transactions.json": "sample-transactions.json",
+}
+
 
 def _resolve(path_str: str) -> Path:
     """Resolve a config path: absolute stays as-is, relative -> repo root."""
     p = Path(path_str)
     return p if p.is_absolute() else _PROJECT_ROOT / p
+
+
+def _write_sample(src_file: Path, dst_file: Path) -> None:
+    """Copy *src_file* to *dst_file* and make *dst_file* read-only."""
+    shutil.copy2(src_file, dst_file)
+    # Remove write bits for owner, group, and others.
+    current = dst_file.stat().st_mode
+    dst_file.chmod(current & ~0o222)
 
 
 def seed_portfolio_if_needed(cfg: Optional[AppConfig] = None) -> Path:
@@ -86,18 +107,30 @@ def seed_portfolio_if_needed(cfg: Optional[AppConfig] = None) -> Path:
         )
         return source
 
+    # Copy live data files (accounts.json, transactions.json) if absent,
+    # and write the matching read-only sample file at the same time.
     copied: List[str] = []
     for src_file in sorted(source.glob("*.json")):
         dst_file = target / src_file.name
-        if dst_file.exists():
-            continue
-        try:
-            shutil.copy2(src_file, dst_file)
-            copied.append(src_file.name)
-        except OSError as exc:
-            _logger.warning(
-                "Failed to seed %s -> %s: %s", src_file, dst_file, exc
-            )
+        if not dst_file.exists():
+            try:
+                shutil.copy2(src_file, dst_file)
+                copied.append(src_file.name)
+            except OSError as exc:
+                _logger.warning(
+                    "Failed to seed %s -> %s: %s", src_file, dst_file, exc
+                )
+
+        # Write the read-only sample alongside the live file (once only).
+        sample_name = _SAMPLE_MAP.get(src_file.name)
+        if sample_name:
+            sample_file = target / sample_name
+            if not sample_file.exists():
+                try:
+                    _write_sample(src_file, sample_file)
+                    _logger.info("Wrote read-only sample %s", sample_file)
+                except OSError as exc:
+                    _logger.warning("Failed to write sample %s: %s", sample_file, exc)
 
     if copied:
         _logger.info(
@@ -111,6 +144,7 @@ def seed_portfolio_if_needed(cfg: Optional[AppConfig] = None) -> Path:
             "Portfolio data_path=%s already populated; nothing to seed.",
             target,
         )
+
     return target
 
 

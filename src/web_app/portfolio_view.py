@@ -14,11 +14,11 @@ Graphics:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import html
+from typing import Any, Dict, List, Set
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
 from src.agents.portfolio.loader import PortfolioSnapshot
@@ -96,50 +96,92 @@ def _transactions_dataframe(snapshot: PortfolioSnapshot) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------
+# HTML table helpers (replaces go.Table to avoid Plotly fill_color bugs)
+# ---------------------------------------------------------------------
+
+_TABLE_CSS = """
+<style>
+.fincent-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: sans-serif;
+}
+.fincent-table thead tr th {
+    background-color: #1f2937;
+    color: #ffffff;
+    font-weight: 600;
+    padding: 6px 10px;
+    vertical-align: middle;
+    text-align: left;
+    white-space: nowrap;
+}
+.fincent-table thead tr th.right {
+    text-align: right;
+}
+.fincent-table tbody tr:nth-child(odd)  { background-color: #f9fafb; }
+.fincent-table tbody tr:nth-child(even) { background-color: #ffffff; }
+.fincent-table tbody tr td {
+    padding: 5px 10px;
+    color: #111827;
+    vertical-align: middle;
+}
+.fincent-table tbody tr td.right { text-align: right; }
+</style>
+"""
+def _inject_table_css() -> None:
+    st.markdown(_TABLE_CSS, unsafe_allow_html=True)
+
+
+def _html_table(
+    headers: List[str],
+    rows: List[List[str]],
+    right_align_cols: Set[int] | None = None,
+) -> str:
+    """Render *headers* + *rows* as a styled HTML table string."""
+    right_align_cols = right_align_cols or set()
+
+    th_cells = "".join(
+        f'<th class="{"right" if i in right_align_cols else ""}">{h}</th>'
+        for i, h in enumerate(headers)
+    )
+    body_rows = ""
+    for row in rows:
+        td_cells = "".join(
+            f'<td class="{"right" if i in right_align_cols else ""}">'
+            f'{html.escape(str(v))}</td>'
+            for i, v in enumerate(row)
+        )
+        body_rows += f"<tr>{td_cells}</tr>"
+
+    return (
+        f'<table class="fincent-table">'
+        f"<thead><tr>{th_cells}</tr></thead>"
+        f"<tbody>{body_rows}</tbody>"
+        f"</table>"
+    )
+
+
+# ---------------------------------------------------------------------
 # Plotly figure builders
 # ---------------------------------------------------------------------
 
 
-def _accounts_table_figure(df: pd.DataFrame) -> go.Figure:
-    """Plotly table of accounts sorted by balance (desc)."""
-    balances = [_fmt_currency(v) for v in df["Balance"].tolist()]
-    fig = go.Figure(
-        data=[
-            go.Table(
-                columnwidth=[140, 50, 65, 85],
-                header=dict(
-                    values=[
-                        "<b>Account</b>",
-                        "<b>Type</b>",
-                        "<b>Broker</b>",
-                        "<b>Balance</b>",
-                    ],
-                    fill_color="#1f2937",
-                    font=dict(color="white", size=11),
-                    align="left",
-                    height=26,
-                ),
-                cells=dict(
-                    values=[
-                        df["Account"].tolist(),
-                        df["Type"].tolist(),
-                        df["Broker"].tolist(),
-                        balances,
-                    ],
-                    fill_color=[["#f9fafb", "#ffffff"] * (len(df) // 2 + 1)],
-                    align=["left", "left", "left", "right"],
-                    font=dict(size=11),
-                    height=22,
-                ),
-            )
-        ]
+def _render_accounts_table(df: pd.DataFrame) -> None:
+    """Render accounts sorted by balance as an HTML table."""
+    _inject_table_css()
+    rows = [
+        [row["Account"], row["Type"], row["Broker"], _fmt_currency(row["Balance"])]
+        for _, row in df.iterrows()
+    ]
+    st.markdown(
+        _html_table(
+            headers=["Account", "Type", "Broker", "Balance"],
+            rows=rows,
+            right_align_cols={3},
+        ),
+        unsafe_allow_html=True,
     )
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        width=420,
-        height=max(90, 30 + 24 * len(df)),
-    )
-    return fig
 
 
 def _allocation_pie_figure(df: pd.DataFrame) -> go.Figure:
@@ -159,17 +201,19 @@ def _allocation_pie_figure(df: pd.DataFrame) -> go.Figure:
         sort=False,
     )
     fig.update_layout(
-        margin=dict(l=0, r=0, t=10, b=10),
+        margin=dict(l=0, r=0, t=40, b=10),
         showlegend=True,
         legend=dict(orientation="h", y=-0.05, x=0.5, xanchor="center"),
-        height=300,
+        height=225,
     )
     return fig
 
 
-def _transactions_table_figure(df: pd.DataFrame) -> go.Figure:
-    """Plotly table for the ten most recent transactions."""
-    def _fmt_num(v: Any) -> str:
+def _render_transactions_table(df: pd.DataFrame) -> None:
+    """Render the ten most recent transactions as an HTML table."""
+    _inject_table_css()
+
+    def _fmt(v: Any) -> str:
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return "-"
         try:
@@ -177,60 +221,26 @@ def _transactions_table_figure(df: pd.DataFrame) -> go.Figure:
         except (TypeError, ValueError):
             return str(v)
 
-    qty = [_fmt_num(v) for v in df["Qty"].tolist()]
-    price = [_fmt_num(v) for v in df["Price"].tolist()]
-    amount = [_fmt_num(v) for v in df["Amount"].tolist()]
-    fig = go.Figure(
-        data=[
-            go.Table(
-                columnwidth=[60, 45, 40, 35, 50, 65, 75],
-                header=dict(
-                    values=[
-                        "<b>Date</b>",
-                        "<b>Type</b>",
-                        "<b>Ticker</b>",
-                        "<b>Qty</b>",
-                        "<b>Price</b>",
-                        "<b>Amount</b>",
-                        "<b>Account</b>",
-                    ],
-                    fill_color="#1f2937",
-                    font=dict(color="white", size=11),
-                    align="left",
-                    height=24,
-                ),
-                cells=dict(
-                    values=[
-                        df["Date"].tolist(),
-                        df["Type"].tolist(),
-                        df["Ticker"].tolist(),
-                        qty,
-                        price,
-                        amount,
-                        df["Account"].tolist(),
-                    ],
-                    fill_color=[["#f9fafb", "#ffffff"] * (len(df) // 2 + 1)],
-                    align=[
-                        "left",
-                        "left",
-                        "left",
-                        "right",
-                        "right",
-                        "right",
-                        "left",
-                    ],
-                    font=dict(size=10),
-                    height=20,
-                ),
-            )
+    rows = [
+        [
+            row["Date"],
+            row["Type"],
+            row["Ticker"],
+            _fmt(row["Qty"]),
+            _fmt(row["Price"]),
+            _fmt(row["Amount"]),
+            row["Account"],
         ]
+        for _, row in df.iterrows()
+    ]
+    st.markdown(
+        _html_table(
+            headers=["Date", "Type", "Ticker", "Qty", "Price", "Amount", "Account"],
+            rows=rows,
+            right_align_cols={3, 4, 5},
+        ),
+        unsafe_allow_html=True,
     )
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        width=520,
-        height=max(90, 28 + 22 * len(df)),
-    )
-    return fig
 
 
 # ---------------------------------------------------------------------
@@ -259,11 +269,7 @@ def render_portfolio_panel(snapshot: PortfolioSnapshot) -> None:
         if accounts_df.empty:
             st.info("No accounts on file.")
         else:
-            st.plotly_chart(
-                _accounts_table_figure(accounts_df),
-                use_container_width=False,
-                config={"displayModeBar": False},
-            )
+            _render_accounts_table(accounts_df)
 
     with allocation_col:
         st.markdown("**Asset allocation**")
@@ -282,8 +288,6 @@ def render_portfolio_panel(snapshot: PortfolioSnapshot) -> None:
     if transactions_df.empty:
         st.info("No transactions on file.")
     else:
-        st.plotly_chart(
-            _transactions_table_figure(transactions_df),
-            use_container_width=False,
-            config={"displayModeBar": False},
-        )
+        txn_col, _ = st.columns([2, 1], gap="large")
+        with txn_col:
+            _render_transactions_table(transactions_df)
