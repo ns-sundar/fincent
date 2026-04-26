@@ -22,6 +22,33 @@ class LLMConfigurationError(RuntimeError):
     """Raised when the LLM cannot be constructed (e.g. missing API key)."""
 
 
+# Runtime model override — None means "use whatever config.yaml says".
+# Set via set_current_model(); read by get_default_chat_model().
+_runtime_model: Optional[str] = None
+
+
+def set_current_model(name: str) -> None:
+    """Switch the default chat model to *name* without restarting.
+
+    Clears the LRU cache so the next call to
+    :func:`get_default_chat_model` builds a fresh instance with the new
+    model.  All subsequent agent invocations in this process pick up the
+    change immediately.
+    """
+    global _runtime_model  # noqa: PLW0603
+    _runtime_model = name
+    get_default_chat_model.cache_clear()
+
+
+def get_current_model() -> str:
+    """Return the model name that :func:`get_default_chat_model` will use.
+
+    This is the runtime override if one has been set, otherwise the value
+    from ``config.yaml``.
+    """
+    return _runtime_model or get_config().llm.model
+
+
 def _require_openai_key() -> str:
     """Return the OPENAI_API_KEY env var or raise a helpful error."""
     key = os.environ.get("OPENAI_API_KEY")
@@ -69,5 +96,11 @@ def build_chat_model(
 
 @lru_cache(maxsize=8)
 def get_default_chat_model() -> BaseChatModel:
-    """Cached convenience accessor for the default chat model."""
-    return build_chat_model()
+    """Cached convenience accessor for the default chat model.
+
+    Uses the runtime override set by :func:`set_current_model` when
+    present, otherwise falls back to ``config.yaml``.  The cache is
+    keyed by the Python process lifetime; call
+    :func:`set_current_model` to invalidate it.
+    """
+    return build_chat_model(model=_runtime_model or None)

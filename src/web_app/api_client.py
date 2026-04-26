@@ -128,6 +128,40 @@ def reset_thread(
     return int((resp.json() or {}).get("removed", 0))
 
 
+def get_model(base_url: str, *, timeout: int = 5) -> str:
+    """Return the name of the chat model currently active in the backend.
+
+    Falls back to an empty string if the backend is unreachable so
+    callers can display a sensible default without crashing.
+    """
+    url = _url(base_url, "/model")
+    try:
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code < 400:
+            return str((resp.json() or {}).get("model", ""))
+    except requests.RequestException:
+        pass
+    return ""
+
+
+def set_model(base_url: str, model: str, *, timeout: int = 10) -> str:
+    """Tell the backend to switch to *model* and return the active model name.
+
+    Raises:
+        FincentApiError: If the backend is unreachable or returns an error.
+    """
+    url = _url(base_url, "/model")
+    try:
+        resp = requests.post(url, json={"model": model}, timeout=timeout)
+    except requests.RequestException as exc:
+        raise FincentApiError(f"Network error talking to {url}: {exc}") from exc
+    if resp.status_code >= 400:
+        raise FincentApiError(
+            f"Model switch failed ({resp.status_code}): {resp.text[:500]}"
+        )
+    return str((resp.json() or {}).get("model", model))
+
+
 def refresh_portfolio(base_url: str, *, timeout: int = 10) -> None:
     """Tell the FastAPI backend to clear its portfolio LRU cache.
 

@@ -42,6 +42,7 @@ from src.agents.portfolio.mcp_tools import (
 )
 from src.agents.portfolio.loader import load_portfolio
 from src.agents.portfolio.seed import seed_portfolio_if_needed
+from src.core.llm import get_current_model, set_current_model
 from src.core.config import AppConfig, get_config
 from src.core.schemas import QueryRequest, QueryResponse
 from src.rag import status as rag_status_mod
@@ -88,6 +89,18 @@ class PortfolioRefreshResponse(BaseModel):
     """Response envelope for ``POST /portfolio/refresh``."""
 
     refreshed: bool = True
+
+
+class ModelResponse(BaseModel):
+    """Response envelope for ``GET /model`` and ``POST /model``."""
+
+    model: str = Field(..., description="Active chat model name.")
+
+
+class ModelSetRequest(BaseModel):
+    """Request body for ``POST /model``."""
+
+    model: str = Field(..., description="Model name to activate.")
 
 
 class RagStatusResponse(BaseModel):
@@ -222,6 +235,21 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         load_portfolio(force_refresh=True)
         _logger.info("Portfolio cache cleared via /portfolio/refresh")
         return PortfolioRefreshResponse(refreshed=True)
+
+    @app.get("/model", response_model=ModelResponse)
+    def get_model() -> ModelResponse:
+        """Return the name of the currently active chat model."""
+        return ModelResponse(model=get_current_model())
+
+    @app.post("/model", response_model=ModelResponse)
+    def set_model(request: ModelSetRequest) -> ModelResponse:
+        """Switch the active chat model without restarting the server.
+
+        Clears the LRU cache so the next agent call uses the new model.
+        """
+        set_current_model(request.model)
+        _logger.info("Chat model switched to %s", request.model)
+        return ModelResponse(model=get_current_model())
 
     @app.post("/query", response_model=QueryResponse)
     def query(request: QueryRequest) -> QueryResponse:

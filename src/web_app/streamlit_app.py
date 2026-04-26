@@ -57,11 +57,13 @@ from src.core.config import get_config
 from src.web_app.api_client import (
     FincentApiError,
     get_history,
+    get_model,
     health,
     query_fincent,
     rag_status,
     refresh_portfolio,
     reset_thread,
+    set_model,
 )
 from src.web_app.markdownutil import sanitize_streamlit_markdown
 from src.web_app.portfolio_view import render_portfolio_panel
@@ -74,6 +76,11 @@ DEFAULT_SESSION_ID: str = "default-session"
 # independent even though they share a base ``?session_id=``.
 _QNA_SUFFIX: str = "qna"
 _PORTFOLIO_SUFFIX: str = "portfolio"
+
+# Available chat models offered in the sidebar selector.
+_AVAILABLE_MODELS: List[str] = ["gpt-4o-mini", "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
+_DEFAULT_MODEL: str = _AVAILABLE_MODELS[0]
+_MODEL_STATE_KEY: str = "selected_model"
 
 _QNA_SUGGESTIONS: List[str] = [
     "What can you do for me?",
@@ -274,6 +281,9 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         _render_portfolio_upload(cfg, api_base_url)
 
         st.markdown("---")
+        _render_model_selector(api_base_url)
+
+        st.markdown("---")
         qna_tid = html.escape(_thread_id_for(session_id, _QNA_SUFFIX), quote=True)
         port_tid = html.escape(
             _thread_id_for(session_id, _PORTFOLIO_SUFFIX), quote=True
@@ -294,6 +304,31 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         st.caption(
             "Tip: open `?session_id=my-id` in the URL for a separate conversation pair."
         )
+
+
+def _render_model_selector(api_base_url: str) -> None:
+    """Sidebar widget: choose the OpenAI chat model used by all agents."""
+    # Seed session state from the backend on first render.
+    if _MODEL_STATE_KEY not in st.session_state:
+        backend_model = get_model(api_base_url)
+        st.session_state[_MODEL_STATE_KEY] = (
+            backend_model if backend_model in _AVAILABLE_MODELS else _DEFAULT_MODEL
+        )
+
+    def _on_model_change() -> None:
+        chosen = st.session_state[_MODEL_STATE_KEY]
+        try:
+            set_model(api_base_url, chosen)
+        except FincentApiError as exc:
+            st.warning(f"Model switch failed: {exc}")
+
+    st.selectbox(
+        "OpenAI model",
+        options=_AVAILABLE_MODELS,
+        key=_MODEL_STATE_KEY,
+        on_change=_on_model_change,
+        help="Applies immediately to all subsequent queries — no restart needed.",
+    )
 
 
 def _render_portfolio_upload(cfg: Any, api_base_url: str) -> None:  # noqa: ANN001
