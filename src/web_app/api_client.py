@@ -128,6 +128,26 @@ def reset_thread(
     return int((resp.json() or {}).get("removed", 0))
 
 
+def refresh_portfolio(base_url: str, *, timeout: int = 10) -> None:
+    """Tell the FastAPI backend to clear its portfolio LRU cache.
+
+    Should be called after a successful portfolio upload so the Portfolio
+    agent reads the newly written files on its next query.
+
+    Raises:
+        FincentApiError: If the backend is unreachable or returns an error.
+    """
+    url = _url(base_url, "/portfolio/refresh")
+    try:
+        resp = requests.post(url, timeout=timeout)
+    except requests.RequestException as exc:
+        raise FincentApiError(f"Network error talking to {url}: {exc}") from exc
+    if resp.status_code >= 400:
+        raise FincentApiError(
+            f"Portfolio refresh failed ({resp.status_code}): {resp.text[:500]}"
+        )
+
+
 def health(base_url: str, *, timeout: int = 5) -> bool:
     """Return True if the API ``/health`` endpoint is reachable and OK."""
     try:

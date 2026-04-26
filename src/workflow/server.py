@@ -40,6 +40,7 @@ from src.agents.portfolio.mcp_tools import (
     start_portfolio_mcp_sessions,
     stop_portfolio_mcp_sessions,
 )
+from src.agents.portfolio.loader import load_portfolio
 from src.agents.portfolio.seed import seed_portfolio_if_needed
 from src.core.config import AppConfig, get_config
 from src.core.schemas import QueryRequest, QueryResponse
@@ -81,6 +82,12 @@ class ResetResponse(BaseModel):
 
     thread_id: str
     removed: int
+
+
+class PortfolioRefreshResponse(BaseModel):
+    """Response envelope for ``POST /portfolio/refresh``."""
+
+    refreshed: bool = True
 
 
 class RagStatusResponse(BaseModel):
@@ -203,6 +210,18 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             ingested_articles=snap.ingested_articles,
             meta=snap.meta,
         )
+
+    @app.post("/portfolio/refresh", response_model=PortfolioRefreshResponse)
+    def portfolio_refresh() -> PortfolioRefreshResponse:
+        """Clear the backend's portfolio LRU cache.
+
+        Called by the Streamlit UI after a successful portfolio upload so
+        that the Portfolio agent reads the freshly written JSON files on
+        its next invocation instead of serving the stale cached snapshot.
+        """
+        load_portfolio(force_refresh=True)
+        _logger.info("Portfolio cache cleared via /portfolio/refresh")
+        return PortfolioRefreshResponse(refreshed=True)
 
     @app.post("/query", response_model=QueryResponse)
     def query(request: QueryRequest) -> QueryResponse:

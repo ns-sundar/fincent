@@ -1,0 +1,329 @@
+[
+    {
+        "url": "https://www.irs.gov/forms-pubs/about-form-1040",
+        "title": "IRS: About Form 1040, U.S. Individual Income Tax Return",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "forms",
+                "compliance"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/e-file-providers/definition-of-adjusted-gross-income",
+        "title": "IRS: Definition of Adjusted Gross Income (AGI)",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "definitions",
+                "agi"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/taxtopics/tc401",
+        "title": "IRS Topic No. 401: Itemized Deductions",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "deductions"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/publications/p17",
+        "title": "IRS Publication 17: Your Federal Income Tax",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "guide",
+                "compliance"
+            ]
+        }
+    },
+    {
+        "url": "https://www.cbp.gov/trade/basic-import-export/internet-purchases",
+        "title": "CBP: Customs Duty, Tariffs, and Taxes on Imports",
+        "tags": {
+            "source": "cbp",
+            "category": [
+                "customs",
+                "tariffs",
+                "trade"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/t/tariff.asp",
+        "title": "Investopedia: What is a Tariff?",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "tariffs",
+                "definitions",
+                "macroeconomics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investor.gov/introduction-investing/investing-basics/save-and-invest",
+        "title": "SEC: Savings and Investing Basics",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "investing",
+                "basics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/r/riskreturntradeoff.asp",
+        "title": "Investopedia: Risk-Return Tradeoff",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "risk",
+                "return",
+                "definitions"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks",
+        "title": "SEC: Stocks",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "stocks",
+                "equities"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investor.gov/introduction-investing/investing-basics/investment-products/bonds-or-fixed-income-products",
+        "title": "SEC: Bonds",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "bonds",
+                "fixed-income"
+            ]
+        }
+    },
+    {
+        "url": "https://www.treasurydirect.gov/savings-bonds/i-bonds/",
+        "title": "TreasuryDirect: How Series I Savings Bonds Work",
+        "tags": {
+            "source": "treasury",
+            "category": [
+                "bonds",
+                "savings"
+            ]
+        }
+    },
+    {
+        "url": "https://www.fdic.gov/resources/consumers/consumer-news/2023-11.html",
+        "title": "FDIC: Certificates of Deposit (CDs)",
+        "tags": {
+            "source": "fdic",
+            "category": [
+                "banking",
+                "cd"
+            ]
+        }
+    },
+    {
+        "url": "https://www.fidelity.com/learning-center/investment-products/etf/etfs-vs-mutual-funds",
+        "title": "Fidelity: Mutual Funds vs. ETFs",
+        "tags": {
+            "source": "fidelity",
+            "category": [
+                "etf",
+                "mutual-funds",
+                "comparison"
+            ]
+        }
+    },
+    {
+        "url": "https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document",
+        "title": "OCC: Risks of Standardized Options",
+        "tags": {
+            "source": "occ",
+            "category": [
+                "derivatives",
+                "options",
+                "risk"
+            ]
+        }
+    },
+    {
+        "url": "https://www.federalreserve.gov/aboutthefed/pf.htm",
+        "title": "Federal Reserve: How the Fed Works",
+        "tags": {
+            "source": "fed",
+            "category": [
+                "banking",
+                "macroeconomics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.nyse.com/market-model",
+        "title": "NYSE: The Role of the Stock Exchange",
+        "tags": {
+            "source": "nyse",
+            "category": [
+                "markets",
+                "infrastructure"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/m/modernportfoliotheory.asp",
+        "title": "Investopedia: Modern Portfolio Theory",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "portfolio",
+                "theory"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/pub/irs-pdf/p550.pdf",
+        "title": "IRS Publication 550: Investment Income",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "income"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/taxtopics/tc409",
+        "title": "IRS: Capital Gains and Losses",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "capital-gains"
+            ]
+        }
+    },
+    {
+        "url": "https://www.fidelity.com/learning-center/investment-products/etf/how-to-choose-an-etf",
+        "title": "Fidelity: How to choose an ETF",
+        "tags": {
+            "source": "fidelity",
+            "category": [
+                "etf",
+                "selection"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/n/nasdaq.asp",
+        "title": "Investopedia: How the Nasdaq Works",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "markets",
+                "nasdaq"
+            ]
+        }
+    },
+    {
+        "url": "https://boglecenter.net/bogleheads-chapter-series-getting-started-with-investing/",
+        "title": "Bogle Center: Getting Started",
+        "tags": {
+            "source": "bogleheads",
+            "category": [
+                "investing",
+                "basics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/retirement-plans/retirement-plans-faqs-regarding-iras",
+        "title": "IRS: Retirement Plans FAQs",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "ira"
+            ]
+        }
+    },
+    {
+        "url": "https://taxfoundation.org/data/all/federal/2026-tax-brackets/",
+        "title": "Tax Foundation: 2026 Tax Brackets",
+        "tags": {
+            "source": "tax-foundation",
+            "category": [
+                "tax",
+                "brackets"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/t/taxgainlossharvesting.asp",
+        "title": "Investopedia: Tax-Loss Harvesting",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "tax",
+                "strategy"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/pub/irs-pdf/p590a.pdf",
+        "title": "IRS Publication 590-A (Contributions)",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "retirement"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/pub/irs-pdf/p590b.pdf",
+        "title": "IRS Publication 590-B (Distributions)",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "retirement"
+            ]
+        }
+    },
+    {
+        "url": "https://taxfoundation.org/tax-basics/capital-gains-tax/",
+        "title": "Tax Foundation: Capital Gains Tax Basics",
+        "tags": {
+            "source": "tax-foundation",
+            "category": [
+                "tax",
+                "basics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.irs.gov/instructions/i1099gi",
+        "title": "IRS: Instructions for 1099 Returns",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "compliance"
+            ]
+        }
+    }
+]

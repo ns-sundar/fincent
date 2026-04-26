@@ -60,6 +60,7 @@ from src.web_app.api_client import (
     health,
     query_fincent,
     rag_status,
+    refresh_portfolio,
     reset_thread,
 )
 from src.web_app.markdownutil import sanitize_streamlit_markdown
@@ -270,7 +271,7 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
                 st.rerun()
 
         st.markdown("---")
-        _render_portfolio_upload(cfg)
+        _render_portfolio_upload(cfg, api_base_url)
 
         st.markdown("---")
         qna_tid = html.escape(_thread_id_for(session_id, _QNA_SUFFIX), quote=True)
@@ -295,7 +296,7 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         )
 
 
-def _render_portfolio_upload(cfg: Any) -> None:  # noqa: ANN001
+def _render_portfolio_upload(cfg: Any, api_base_url: str) -> None:  # noqa: ANN001
     """Sidebar section: upload custom accounts.json + transactions.json."""
     with st.expander("Upload your portfolio", expanded=False):
         data_path = Path(cfg.portfolio.data_path)
@@ -397,11 +398,20 @@ def _render_portfolio_upload(cfg: Any) -> None:  # noqa: ANN001
                 st.error(f"Failed to write portfolio files: {exc}")
                 return
 
+            # Bust the Streamlit-process LRU cache (portfolio graphics).
+            load_portfolio(force_refresh=True)
+
+            # Bust the FastAPI-process LRU cache (Portfolio agent).
+            try:
+                refresh_portfolio(api_base_url)
+            except FincentApiError as exc:
+                st.warning(f"Portfolio updated on disk but backend cache refresh failed: {exc}")
+
             st.success(
                 f"Portfolio updated: {len(acc_data)} account(s), "
-                f"{len(txn_data)} transaction(s). "
-                "Switch to the Portfolio tab to see the changes."
+                f"{len(txn_data)} transaction(s)."
             )
+            st.rerun()
 
 
 def _render_rag_banner(api_base_url: str) -> None:

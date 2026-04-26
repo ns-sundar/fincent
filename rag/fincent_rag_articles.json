@@ -12,6 +12,18 @@
         }
     },
     {
+        "url": "https://www.irs.gov/newsroom/irs-glossary-of-tax-terms",
+        "title": "IRS: Glossary of Tax Terms",
+        "tags": {
+            "source": "irs",
+            "category": [
+                "tax",
+                "definitions",
+                "basics"
+            ]
+        }
+    },
+    {
         "url": "https://www.irs.gov/e-file-providers/definition-of-adjusted-gross-income",
         "title": "IRS: Definition of Adjusted Gross Income (AGI)",
         "tags": {
@@ -59,6 +71,30 @@
         }
     },
     {
+        "url": "https://www.usitc.gov/glossary/term/harmonized-tariff-schedule-united-states-hts",
+        "title": "USITC: What is the Harmonized Tariff Schedule?",
+        "tags": {
+            "source": "usitc",
+            "category": [
+                "customs",
+                "tariffs",
+                "infrastructure"
+            ]
+        }
+    },
+    {
+        "url": "https://www.trade.gov/customs-and-import-procedures",
+        "title": "ITA: Overview of Customs and Import Procedures",
+        "tags": {
+            "source": "ita",
+            "category": [
+                "trade",
+                "customs",
+                "international"
+            ]
+        }
+    },
+    {
         "url": "https://www.investopedia.com/terms/t/tariff.asp",
         "title": "Investopedia: What is a Tariff?",
         "tags": {
@@ -82,6 +118,17 @@
         }
     },
     {
+        "url": "https://www.finra.org/investors/investing/investing-basics/assessing-risk",
+        "title": "FINRA: Assessing Risk",
+        "tags": {
+            "source": "finra",
+            "category": [
+                "risk",
+                "basics"
+            ]
+        }
+    },
+    {
         "url": "https://www.investopedia.com/terms/r/riskreturntradeoff.asp",
         "title": "Investopedia: Risk-Return Tradeoff",
         "tags": {
@@ -90,6 +137,17 @@
                 "risk",
                 "return",
                 "definitions"
+            ]
+        }
+    },
+    {
+        "url": "https://corporate.vanguard.com/content/corporatesite/us/en/corp/who-we-are/sets-us-apart/investment-philosophy.html",
+        "title": "Vanguard: Principles of Investing Success",
+        "tags": {
+            "source": "vanguard",
+            "category": [
+                "investing",
+                "philosophy"
             ]
         }
     },
@@ -138,6 +196,17 @@
         }
     },
     {
+        "url": "https://www.sec.gov/introduction-investing/investing-basics/investment-products/mutual-funds-and-exchange-traded-1",
+        "title": "SEC: Exchange-Traded Funds (ETFs)",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "etf",
+                "funds"
+            ]
+        }
+    },
+    {
         "url": "https://www.fidelity.com/learning-center/investment-products/etf/etfs-vs-mutual-funds",
         "title": "Fidelity: Mutual Funds vs. ETFs",
         "tags": {
@@ -146,6 +215,52 @@
                 "etf",
                 "mutual-funds",
                 "comparison"
+            ]
+        }
+    },
+    {
+        "url": "https://advisors.vanguard.com/insights/article/understanding-etf-creation-and-redemption",
+        "title": "Vanguard: ETF Creation/Redemption Process",
+        "tags": {
+            "source": "vanguard",
+            "category": [
+                "etf",
+                "mechanics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.schwab.com/mutual-funds/mutual-fund-fees",
+        "title": "Schwab: Understanding Mutual Fund Fees",
+        "tags": {
+            "source": "schwab",
+            "category": [
+                "mutual-funds",
+                "fees"
+            ]
+        }
+    },
+    {
+        "url": "https://www.cboe.com/tradable_products/equity_options/strategies/",
+        "title": "CBOE: Options Strategies Guide",
+        "tags": {
+            "source": "cboe",
+            "category": [
+                "derivatives",
+                "options",
+                "strategies"
+            ]
+        }
+    },
+    {
+        "url": "https://www.cmegroup.com/education/courses/introduction-to-futures/what-is-a-futures-contract.html",
+        "title": "CME Group: What is a Futures Contract?",
+        "tags": {
+            "source": "cmegroup",
+            "category": [
+                "derivatives",
+                "futures",
+                "education"
             ]
         }
     },
@@ -184,6 +299,28 @@
         }
     },
     {
+        "url": "https://www.fdic.gov/resources/deposit-insurance/brochures/your-insured-deposits/",
+        "title": "FDIC: Your Guide to Deposit Insurance",
+        "tags": {
+            "source": "fdic",
+            "category": [
+                "banking",
+                "insurance"
+            ]
+        }
+    },
+    {
+        "url": "https://www.bogleheads.org/wiki/Three-fund_portfolio",
+        "title": "Bogleheads: Three-fund Portfolio",
+        "tags": {
+            "source": "bogleheads",
+            "category": [
+                "portfolio",
+                "passive-investing"
+            ]
+        }
+    },
+    {
         "url": "https://www.investopedia.com/terms/m/modernportfoliotheory.asp",
         "title": "Investopedia: Modern Portfolio Theory",
         "tags": {
@@ -217,112 +354,285 @@
         }
     },
     {
-        "url": "https://www.fidelity.com/learning-center/investment-products/etf/how-to-choose-an-etf",
-        "title": "Fidelity: How to choose an ETF",
-        "tags": {
-            "source": "fidelity",
-            "category": [
-                "etf",
-                "selection"
-            ]
-        }
-    },
-    {
-        "url": "https://www.investopedia.com/terms/n/nasdaq.asp",
-        "title": "Investopedia: How the Nasdaq Works",
+        "url": "https://www.investopedia.com/terms/b/beta.asp",
+        "title": "Investopedia: What is Beta?",
         "tags": {
             "source": "investopedia",
             "category": [
-                "markets",
-                "nasdaq"
+                "risk",
+                "equity",
+                "metrics"
             ]
         }
     },
     {
-        "url": "https://boglecenter.net/bogleheads-chapter-series-getting-started-with-investing/",
-        "title": "Bogle Center: Getting Started",
-        "tags": {
-            "source": "bogleheads",
-            "category": [
-                "investing",
-                "basics"
-            ]
-        }
-    },
-    {
-        "url": "https://www.irs.gov/retirement-plans/retirement-plans-faqs-regarding-iras",
-        "title": "IRS: Retirement Plans FAQs",
-        "tags": {
-            "source": "irs",
-            "category": [
-                "tax",
-                "ira"
-            ]
-        }
-    },
-    {
-        "url": "https://taxfoundation.org/data/all/federal/2026-tax-brackets/",
-        "title": "Tax Foundation: 2026 Tax Brackets",
-        "tags": {
-            "source": "tax-foundation",
-            "category": [
-                "tax",
-                "brackets"
-            ]
-        }
-    },
-    {
-        "url": "https://www.investopedia.com/terms/t/taxgainlossharvesting.asp",
-        "title": "Investopedia: Tax-Loss Harvesting",
+        "url": "https://www.investopedia.com/terms/s/standarddeviation.asp",
+        "title": "Investopedia: Standard Deviation",
         "tags": {
             "source": "investopedia",
             "category": [
-                "tax",
+                "risk",
+                "metrics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/d/duration.asp",
+        "title": "Investopedia: Bond Duration Explained",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "risk",
+                "bonds",
+                "metrics"
+            ]
+        }
+    },
+    {
+        "url": "https://www.finra.org/investors/investing/investment-products/bonds/bond-ratings",
+        "title": "FINRA: Bond Ratings - Understanding Credit Risk",
+        "tags": {
+            "source": "finra",
+            "category": [
+                "risk",
+                "bonds",
+                "credit"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investor.gov/introduction-investing/investing-basics/investment-strategies/asset-allocation",
+        "title": "SEC: Beginners' Guide to Asset Allocation",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "portfolio",
                 "strategy"
             ]
         }
     },
     {
-        "url": "https://www.irs.gov/pub/irs-pdf/p590a.pdf",
-        "title": "IRS Publication 590-A (Contributions)",
+        "url": "https://www.investopedia.com/terms/e/efficientfrontier.asp",
+        "title": "Investopedia: Efficient Frontier and Portfolio Optimization",
         "tags": {
-            "source": "irs",
+            "source": "investopedia",
             "category": [
-                "tax",
-                "retirement"
+                "portfolio",
+                "theory",
+                "mpt"
             ]
         }
     },
     {
-        "url": "https://www.irs.gov/pub/irs-pdf/p590b.pdf",
-        "title": "IRS Publication 590-B (Distributions)",
+        "url": "https://www.investopedia.com/terms/c/capm.asp",
+        "title": "Investopedia: Capital Asset Pricing Model (CAPM)",
         "tags": {
-            "source": "irs",
+            "source": "investopedia",
             "category": [
-                "tax",
-                "retirement"
+                "portfolio",
+                "theory",
+                "metrics"
             ]
         }
     },
     {
-        "url": "https://taxfoundation.org/tax-basics/capital-gains-tax/",
-        "title": "Tax Foundation: Capital Gains Tax Basics",
+        "url": "https://www.investopedia.com/terms/r/rebalancing.asp",
+        "title": "Investopedia: Rebalancing Your Portfolio",
         "tags": {
-            "source": "tax-foundation",
+            "source": "investopedia",
             "category": [
-                "tax",
-                "basics"
+                "portfolio",
+                "strategy"
             ]
         }
     },
     {
-        "url": "https://www.irs.gov/instructions/i1099gi",
-        "title": "IRS: Instructions for 1099 Returns",
+        "url": "https://www.investopedia.com/terms/m/meanvarianceanalysis.asp",
+        "title": "Investopedia: Mean-Variance Analysis",
         "tags": {
-            "source": "irs",
+            "source": "investopedia",
             "category": [
-                "tax",
-                "compliance"
+                "portfolio",
+                "theory",
+                "mpt"
+            ]
+        }
+    },
+    {
+        "url": "https://www.wallstreetprep.com/knowledge/best-value-investing-books/",
+        "title": "WallStreetPrep: The 10 Best Value Investing Books",
+        "tags": {
+            "source": "wallstreetprep",
+            "category": [
+                "resources",
+                "books"
+            ]
+        }
+    },
+    {
+        "url": "https://www.sarwa.co/blog/best-investing-books",
+        "title": "Sarwa: The 40 Best Investing Books Ever Written",
+        "tags": {
+            "source": "sarwa",
+            "category": [
+                "resources",
+                "books"
+            ]
+        }
+    },
+    {
+        "url": "https://www.bogleheads.org/wiki/Book_recommendations_and_reviews",
+        "title": "Bogleheads: Recommended Reading List for Passive Investors",
+        "tags": {
+            "source": "bogleheads",
+            "category": [
+                "resources",
+                "books",
+                "passive-investing"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/best-investing-books-7506941",
+        "title": "Investopedia: Best Investing Books of 2024 and 2025",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "resources",
+                "books"
+            ]
+        }
+    },
+    {
+        "url": "https://en.wikipedia.org/wiki/Derivative_(finance)",
+        "title": "Wikipedia: Derivative Finance - OTC vs Exchange Traded",
+        "tags": {
+            "source": "wikipedia",
+            "category": [
+                "derivatives",
+                "overview"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/s/swap.asp",
+        "title": "Investopedia: Interest Rate and Currency Swaps",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "derivatives",
+                "swaps"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/f/forwardcontract.asp",
+        "title": "Investopedia: Forward Contracts vs. Futures",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "derivatives",
+                "forwards"
+            ]
+        }
+    },
+    {
+        "url": "https://www.finra.org/investors/investing/investment-products/futures-and-commodities",
+        "title": "FINRA: Futures and Commodities Trading Fundamentals",
+        "tags": {
+            "source": "finra",
+            "category": [
+                "derivatives",
+                "futures"
+            ]
+        }
+    },
+    {
+        "url": "https://cdn.cboe.com/resources/options/Trading_Strategies.pdf",
+        "title": "CBOE: Common Options Trading Strategies Guide",
+        "tags": {
+            "source": "cboe",
+            "category": [
+                "options",
+                "strategies"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/c/coveredcall.asp",
+        "title": "Investopedia: Income Generation via Covered Calls",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "options",
+                "strategies"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/b/bullcallspread.asp",
+        "title": "Investopedia: Bull Call Spread Mechanics",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "options",
+                "strategies"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/i/ironcondor.asp",
+        "title": "Investopedia: How to Trade an Iron Condor",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "options",
+                "strategies"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins-76",
+        "title": "SEC Investor Bulletin: Understanding Structured Notes",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "structured-notes",
+                "risk"
+            ]
+        }
+    },
+    {
+        "url": "https://www.finra.org/investors/alerts/structured-notes-with-principal-protection",
+        "title": "FINRA Alert: Principal Protection Note Risks",
+        "tags": {
+            "source": "finra",
+            "category": [
+                "structured-notes",
+                "risk"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investopedia.com/terms/s/structurednote.asp",
+        "title": "Investopedia: Structured Notes - Bond and Derivative Hybrids",
+        "tags": {
+            "source": "investopedia",
+            "category": [
+                "structured-notes",
+                "definitions"
+            ]
+        }
+    },
+    {
+        "url": "https://www.investor.gov/introduction-investing/investing-basics/investment-products/certificates-deposit-cds/structured-cds",
+        "title": "SEC: Structured and Market-Linked CDs",
+        "tags": {
+            "source": "sec",
+            "category": [
+                "banking",
+                "structured-notes",
+                "cd"
             ]
         }
     }

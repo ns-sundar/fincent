@@ -107,10 +107,11 @@ def seed_portfolio_if_needed(cfg: Optional[AppConfig] = None) -> Path:
         )
         return source
 
-    # Copy live data files (accounts.json, transactions.json) if absent,
+    # Copy only the two canonical live-data files (not schemas, alt-*, etc.)
     # and write the matching read-only sample file at the same time.
+    _SEED_FILES = ("accounts.json", "transactions.json")
     copied: List[str] = []
-    for src_file in sorted(source.glob("*.json")):
+    for src_file in [source / name for name in _SEED_FILES]:
         dst_file = target / src_file.name
         if not dst_file.exists():
             try:
