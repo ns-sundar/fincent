@@ -504,6 +504,8 @@ def _agents_involved(
             agents.append(name)
     if agents:
         return agents
+    if not isinstance(plan_payload, dict):
+        return []
     if bool(plan_payload.get("handled_by_central")):
         return ["central"]
     return []
@@ -578,7 +580,7 @@ def _render_history(history: List[Dict]) -> None:
     for turn in history:
         with st.chat_message(turn["role"]):
             st.markdown(sanitize_streamlit_markdown(turn["content"] or ""))
-            if turn["role"] == "assistant" and "plan" in turn:
+            if turn["role"] == "assistant" and isinstance(turn.get("plan"), dict):
                 _render_plan_expander(turn["plan"], turn.get("agent_responses", []))
 
 
@@ -614,7 +616,19 @@ def _run_chat_turn(
                 intent_hint=intent_hint,
             )
         except FincentApiError as exc:
-            placeholder.error(str(exc))
+            if getattr(exc, "categories", None):
+                answer = f"{exc.detail}\n\nCategories: {', '.join(exc.categories)}"
+            else:
+                answer = str(exc)
+            placeholder.markdown(sanitize_streamlit_markdown(answer))
+            st.session_state[history_key].append({"role": "user", "content": user_input})
+            st.session_state[history_key].append(
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "agent_responses": [],
+                }
+            )
             return
 
         placeholder.markdown(

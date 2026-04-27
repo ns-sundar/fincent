@@ -29,11 +29,17 @@ Startup behaviour:
 
 from __future__ import annotations
 
+import json
+import os
+import re
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from markdown_it import MarkdownIt
+from openai import AsyncOpenAI, OpenAIError
 from pydantic import BaseModel, Field
 
 from src.agents.portfolio.mcp_tools import (
@@ -57,6 +63,11 @@ from src.workflow.graph import (
 )
 
 _logger = get_logger(__name__)
+_MODERATION_MODEL = "omni-moderation-latest"
+_QUERY_PATH = "/query"
+_MAX_MARKDOWN_LOG_CHARS = 8000
+_MARKDOWN = MarkdownIt("commonmark").enable("table")
+_FENCE_LINE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
 # ---------------------------------------------------------------------
@@ -117,6 +128,130 @@ class RagStatusResponse(BaseModel):
     chunk_count: int = 0
     ingested_articles: int = 0
     meta: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------
+# Request / response guardrails
+# ---------------------------------------------------------------------
+
+
+def _restore_request_body(request: Request, body: bytes) -> None:
+    """Put a consumed request body back so FastAPI can parse it later."""
+
+    async def _receive() -> Dict[str, Any]:
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request._receive = _receive  # type: ignore[attr-defined]  # noqa: SLF001
+
+
+def _flagged_categories(moderation: Any) -> List[str]:
+    """Return the flagged category names from an OpenAI moderation response."""
+    if not getattr(moderation, "results", None):
+        return []
+    result = moderation.results[0]
+    if not bool(getattr(result, "flagged", False)):
+        return []
+    categories = getattr(result, "categories", None)
+    if categories is None:
+        return []
+    raw = (
+        categories.model_dump(by_alias=True)
+        if hasattr(categories, "model_dump")
+        else dict(categories)
+    )
+    return sorted(str(name) for name, flagged in raw.items() if flagged)
+
+
+async def _moderate_query_text(query: str) -> List[str]:
+    """Run the user's query through OpenAI Moderation and return categories."""
+    client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    moderation = await client.moderations.create(
+        model=_MODERATION_MODEL,
+        input=query,
+    )
+    return _flagged_categories(moderation)
+
+
+def _response_media_type(response: Response) -> str:
+    return (response.media_type or response.headers.get("content-type") or "").lower()
+
+
+async def _read_response_body(response: Response) -> bytes:
+    """Consume a Starlette response body into bytes."""
+    return b"".join([chunk async for chunk in response.body_iterator])
+
+
+def _unclosed_fence_error(markdown: str) -> Optional[str]:
+    """Detect unclosed fenced code blocks before markdown-it normalises them."""
+    opener: Optional[str] = None
+    opener_char = ""
+    opener_len = 0
+    for line_no, line in enumerate(markdown.splitlines(), start=1):
+        match = _FENCE_LINE.match(line)
+        if not match:
+            continue
+        fence = match.group(1)
+        if opener is None:
+            opener = fence
+            opener_char = fence[0]
+            opener_len = len(fence)
+            continue
+        if fence[0] == opener_char and len(fence) >= opener_len:
+            opener = None
+            opener_char = ""
+            opener_len = 0
+    if opener is not None:
+        return "Unclosed fenced code block."
+    return None
+
+
+def _table_error(markdown: str) -> Optional[str]:
+    """Detect common malformed GitHub-style markdown tables."""
+    lines = markdown.splitlines()
+    for i in range(len(lines) - 1):
+        header = lines[i].strip()
+        separator = lines[i + 1].strip()
+        if "|" not in header or "|" not in separator:
+            continue
+        if not re.fullmatch(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?", separator):
+            continue
+        header_cols = [c.strip() for c in header.strip("|").split("|")]
+        sep_cols = [c.strip() for c in separator.strip("|").split("|")]
+        if len(header_cols) != len(sep_cols):
+            return "Markdown table header and separator column counts differ."
+        for j in range(i + 2, len(lines)):
+            row = lines[j].strip()
+            if not row or "|" not in row:
+                break
+            row_cols = [c.strip() for c in row.strip("|").split("|")]
+            if len(row_cols) != len(header_cols):
+                return "Markdown table row column count differs from the header."
+    return None
+
+
+def _markdown_validation_error(markdown: str) -> Optional[str]:
+    """Return a human-readable issue if markdown is structurally malformed."""
+    fence_error = _unclosed_fence_error(markdown)
+    if fence_error:
+        return fence_error
+    table_error = _table_error(markdown)
+    if table_error:
+        return table_error
+    try:
+        _MARKDOWN.parse(markdown)
+    except Exception as exc:  # noqa: BLE001
+        return f"Markdown parser rejected the response: {exc}"
+    return None
+
+
+def _markdown_log_excerpt(markdown: str) -> str:
+    """Return markdown text as seen by FastAPI, capped for log safety."""
+    if len(markdown) <= _MAX_MARKDOWN_LOG_CHARS:
+        return markdown
+    return (
+        markdown[:_MAX_MARKDOWN_LOG_CHARS]
+        + f"\n... [truncated; total_chars={len(markdown)}]"
+    )
 
 
 # ---------------------------------------------------------------------
@@ -199,6 +334,79 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     )
 
     graph = default_graph()
+
+    @app.middleware("http")
+    async def query_guardrails(request: Request, call_next: Any) -> Response:
+        """Moderate incoming queries and validate outgoing markdown answers."""
+        if request.url.path != _QUERY_PATH or request.method.upper() != "POST":
+            return await call_next(request)
+
+        body = await request.body()
+        _restore_request_body(request, body)
+
+        try:
+            payload = json.loads(body or b"{}")
+        except json.JSONDecodeError:
+            # Let FastAPI's request model validation return the canonical error.
+            return await call_next(request)
+
+        query_text = payload.get("query")
+        if isinstance(query_text, str) and query_text.strip():
+            try:
+                categories = await _moderate_query_text(query_text)
+            except OpenAIError as exc:
+                _logger.exception("OpenAI moderation failed")
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": f"Moderation check failed: {exc}"},
+                )
+
+            if categories:
+                _logger.info("Moderation rejected query (categories=%s)", categories)
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "detail": (
+                            "This query violates the site's policy for these "
+                            "categories."
+                        ),
+                        "categories": categories,
+                    },
+                )
+
+        response = await call_next(request)
+        media_type = _response_media_type(response)
+        if response.status_code >= 400 or "application/json" not in media_type:
+            return response
+
+        response_body = await _read_response_body(response)
+        try:
+            response_payload = json.loads(response_body or b"{}")
+        except json.JSONDecodeError:
+            return Response(
+                content=response_body,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+
+        answer = response_payload.get("answer")
+        if isinstance(answer, str):
+            error = _markdown_validation_error(answer)
+            if error:
+                _logger.warning(
+                    "Backend produced markdown with validation warning: %s\n"
+                    "Markdown seen by FastAPI:\n%s",
+                    error,
+                    _markdown_log_excerpt(answer),
+                )
+
+        return Response(
+            content=response_body,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
 
     # ---- Plain endpoints ---------------------------------------------------
 

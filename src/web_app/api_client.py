@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Dict, List, Optional
 
 import requests
@@ -11,6 +12,48 @@ from src.core.schemas import QueryRequest, QueryResponse
 
 class FincentApiError(RuntimeError):
     """Raised on any non-2xx response from the Fincent API."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        detail: Optional[str] = None,
+        categories: Optional[List[str]] = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.detail = detail or message
+        self.categories = categories or []
+
+
+def _api_error_from_response(resp: requests.Response, *, fallback: str) -> FincentApiError:
+    """Preserve structured API error details for UI rendering."""
+    detail = fallback
+    categories: List[str] = []
+    try:
+        payload = resp.json() or {}
+    except (ValueError, json.JSONDecodeError):
+        payload = {}
+
+    if isinstance(payload, dict):
+        raw_detail = payload.get("detail")
+        if isinstance(raw_detail, str) and raw_detail:
+            detail = raw_detail
+        raw_categories = payload.get("categories")
+        if isinstance(raw_categories, list):
+            categories = [str(c) for c in raw_categories]
+
+    if categories:
+        message = f"{detail} " + ", ".join(categories)
+    else:
+        message = f"{detail} ({resp.status_code})"
+    return FincentApiError(
+        message,
+        status_code=resp.status_code,
+        detail=detail,
+        categories=categories,
+    )
 
 
 # LangGraph/LangChain -> Streamlit role mapping. Keep in sync with
@@ -65,8 +108,8 @@ def query_fincent(
         raise FincentApiError(f"Network error talking to {url}: {exc}") from exc
 
     if resp.status_code >= 400:
-        raise FincentApiError(
-            f"Fincent API error {resp.status_code}: {resp.text[:500]}"
+        raise _api_error_from_response(
+            resp, fallback=f"Fincent API error {resp.status_code}: {resp.text[:500]}"
         )
     return QueryResponse.model_validate(resp.json())
 

@@ -26,12 +26,12 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
                           that has nothing to do with finance or the
                           user's portfolio. Respond to small talk but
                           reject general knowledge questions or requests
-                          that are not related to finance.
-      - qna            -> GENERIC (NON-personal) FINANCIAL questions:
+                          that are not related to finance or economics.
+      - qna            -> GENERIC (NON-personal) FINANCIAL and ECONOMICS questions:
                           stocks, bonds, cash, ETFs, mutual funds,
                           general portfolio theory, investment risk,
                           market mechanics, brokers, general IRS/tax
-                          rules, product definitions. These do NOT
+                          rules, product definitions, economics. These do NOT
                           involve the user's own accounts / holdings
                           / transactions.
       - portfolio      -> Any question that TOUCHES the user's OWN
