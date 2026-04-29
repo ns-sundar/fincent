@@ -72,12 +72,6 @@ agents:
       (stocks / bonds / cash), and recent transaction activity. Data is
       loaded from the static JSON files under
       ``portfolio.data_path`` until live account connectivity is wired.
-  agent_three:
-    enabled: false
-    description: "Reserved placeholder for a future specialist agent."
-  agent_four:
-    enabled: false
-    description: "Reserved placeholder for a future specialist agent."
 
 rag:
   # Retrieval-Augmented Generation for the Q&A agent.

@@ -18,8 +18,6 @@ class AgentName(str, Enum):
     CENTRAL = "central"
     QNA = "qna"
     PORTFOLIO = "portfolio"
-    AGENT_THREE = "agent_three"
-    AGENT_FOUR = "agent_four"
 
 
 class Intent(str, Enum):
@@ -33,8 +31,6 @@ class Intent(str, Enum):
     USER_GENERIC = "user_generic"
     QNA = "qna"
     PORTFOLIO = "portfolio"
-    AGENT_THREE = "agent_three"
-    AGENT_FOUR = "agent_four"
     UNKNOWN = "unknown"
 
 

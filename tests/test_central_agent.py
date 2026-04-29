@@ -101,16 +101,16 @@ def test_plan_route_strips_code_fence():
 
 
 def test_plan_route_drops_disabled_specialists():
-    """Disabled specialists must be filtered out of the plan."""
+    """Non-specialist or unknown intents must be filtered; qna kept."""
     payload = json.dumps(
         {
             "handled_by_central": False,
-            "intents": ["agent_three", "qna"],
+            "intents": ["unknown", "qna"],
             "rationale": "",
         }
     )
     plan = plan_route("Test", llm=_fake_llm(payload))
-    assert Intent.AGENT_THREE not in plan.intents
+    assert Intent.UNKNOWN not in plan.intents
     assert Intent.QNA in plan.intents
 
 
@@ -122,11 +122,11 @@ def test_plan_route_falls_back_on_bad_json():
 
 
 def test_plan_route_falls_back_when_no_enabled_specialist():
-    """If the router picks only disabled specialists, fall back to qna."""
+    """Unrecognised router intent strings fall back to qna."""
     payload = json.dumps(
         {
             "handled_by_central": False,
-            "intents": ["agent_three", "agent_four"],
+            "intents": ["legacy_slot_a", "legacy_slot_b"],
         }
     )
     plan = plan_route("Test", llm=_fake_llm(payload))
@@ -146,17 +146,23 @@ def test_plan_route_honors_intent_hint():
     assert plan.intents == [Intent.PORTFOLIO]
 
 
-def test_plan_route_ignores_hint_for_disabled_specialist():
+def test_plan_route_ignores_hint_for_disabled_specialist(monkeypatch):
     """A hint pointing at a disabled agent should be ignored."""
-    payload = json.dumps(
-        {"handled_by_central": False, "intents": ["qna"]}
-    )
-    plan = plan_route(
-        "Test",
-        llm=_fake_llm(payload),
-        intent_hint=Intent.AGENT_THREE,
-    )
-    assert plan.intents == [Intent.QNA]
+    from src.core.config import reset_config_cache
+
+    monkeypatch.setenv("FINCENT__AGENTS__PORTFOLIO__ENABLED", "false")
+    reset_config_cache()
+    try:
+        payload = json.dumps({"handled_by_central": False, "intents": ["qna"]})
+        plan = plan_route(
+            "Test",
+            llm=_fake_llm(payload),
+            intent_hint=Intent.PORTFOLIO,
+        )
+        assert plan.intents == [Intent.QNA]
+    finally:
+        monkeypatch.delenv("FINCENT__AGENTS__PORTFOLIO__ENABLED", raising=False)
+        reset_config_cache()
 
 
 # ---------------------------------------------------------------------

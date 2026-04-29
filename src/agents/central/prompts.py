@@ -49,8 +49,6 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
                           context via tools, so always route personal
                           questions to PORTFOLIO rather than fanning
                           out to both.
-      - agent_three    -> RESERVED (not yet implemented).
-      - agent_four     -> RESERVED (not yet implemented).
       - unknown        -> Use only when nothing else fits.
 
     Routing rules:

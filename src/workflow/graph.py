@@ -52,8 +52,6 @@ from src.utils.logging import get_logger
 from src.workflow.nodes import (
     SPECIALIST_NODE_FOR,
     aggregator_node,
-    agent_four_node,
-    agent_three_node,
     central_direct_node,
     planner_node,
     portfolio_node,
@@ -114,8 +112,6 @@ def build_graph(
     g.add_node("central_direct", central_direct_node)
     g.add_node("qna_node", qna_node)
     g.add_node("portfolio_node", portfolio_node)
-    g.add_node("agent_three_node", agent_three_node)
-    g.add_node("agent_four_node", agent_four_node)
     g.add_node("aggregator", aggregator_node)
 
     g.add_edge(START, "planner")
@@ -128,16 +124,12 @@ def build_graph(
             "aggregator": "aggregator",
             "qna_node": "qna_node",
             "portfolio_node": "portfolio_node",
-            "agent_three_node": "agent_three_node",
-            "agent_four_node": "agent_four_node",
         },
     )
 
     g.add_edge("central_direct", "aggregator")
     g.add_edge("qna_node", "aggregator")
     g.add_edge("portfolio_node", "aggregator")
-    g.add_edge("agent_three_node", "aggregator")
-    g.add_edge("agent_four_node", "aggregator")
     g.add_edge("aggregator", END)
 
     return g.compile(checkpointer=checkpointer) if checkpointer else g.compile()

@@ -21,7 +21,6 @@ def test_load_default_config(monkeypatch):
     assert cfg.llm.provider == "openai"
     assert cfg.agents.qna.enabled is True
     assert cfg.agents.portfolio.enabled is True
-    assert cfg.agents.agent_three.enabled is False
     assert cfg.checkpointer.path == "/data/checkpoints.sqlite"
     assert cfg.rag.enabled is True
     assert cfg.rag.vector_db_path == "/data/vector_db"

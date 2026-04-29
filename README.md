@@ -18,8 +18,7 @@ separate process.
 > the Q&A agent is RAG-enabled (FAISS + LangChain ingestion of the
 > curated catalog at `rag/fincent_rag_articles.json`); the Portfolio
 > agent is a ReAct tool-caller wired to two MCP servers (OpenBB for
-> live market data, Fincent's RAG sidecar for curated documents);
-> two additional specialist agents are stubbed for future iterations.
+> live market data, Fincent's RAG sidecar for curated documents).
 
 ---
 
@@ -42,12 +41,12 @@ separate process.
                 |   workflow        |
                 +-------------------+
                           |
-   +----------+-----------+-----------+----------+
-   |          |           |           |          |
- central    qna        portfolio  agent_three  agent_four
-(router/    (skeleton)  (grounded)  (stub)       (stub)
- direct/
- aggregator)
+   +--------------+--------+--------------+
+   |              |                     |
+ central         qna                portfolio
+(router /    (generic financial   (personal portfolio
+ direct /     RAG for non-personal  + tools / live data)
+ aggregator)  questions)
 ```
 
 The central agent has three responsibilities:
@@ -295,8 +294,6 @@ fincent/
       central/      # Orchestrator (planner + direct + aggregator)
       qna/          # Generic financial Q&A (agentic RAG: top-k + MMR + source-filter citations)
       portfolio/    # Personal portfolio agent (reads /data/portfolio; seeded on first boot from data/default_portfolio)
-      agent_three/  # Reserved
-      agent_four/   # Reserved
     core/           # Config, LLM factory, shared schemas
     data/           # Python pkg ``src.data`` — NOT the same as ``/data`` on disk
     rag/            # RAG: loaders, ingestion, FAISS retriever, canonical search tool, MCP server, status

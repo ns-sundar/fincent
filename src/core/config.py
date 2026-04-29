@@ -69,8 +69,6 @@ class AgentsConfig(BaseModel):
     central: AgentToggle = AgentToggle(enabled=True, max_fanout=3)
     qna: AgentToggle = AgentToggle(enabled=True)
     portfolio: AgentToggle = AgentToggle(enabled=True)
-    agent_three: AgentToggle = AgentToggle(enabled=False)
-    agent_four: AgentToggle = AgentToggle(enabled=False)
 
 
 class LoggingConfig(BaseModel):
