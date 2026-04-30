@@ -1,0 +1,5 @@
+# Eval-only dependencies. Install with:
+#   pip install -r requirements.txt -r requirements-eval.txt
+#
+# The HuggingFace Dockerfile intentionally installs requirements.txt only.
+deepeval

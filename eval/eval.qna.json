@@ -1,0 +1,92 @@
+[
+  {
+    "input": "What is an ETF?",
+    "expected_output": "An ETF, or exchange-traded fund, is an investment fund that holds a basket of assets and trades on an exchange like a stock.",
+    "retrieval_context": [
+      "An exchange-traded fund (ETF) is a pooled investment vehicle that trades on stock exchanges and can hold assets such as stocks, bonds, or commodities."
+    ],
+    "additional_metadata": {
+      "intent": "qna",
+      "source": "knowledge_base",
+      "handled_by_central": false,
+      "expected_agents": [
+        "qna"
+      ]
+    }
+  },
+  {
+    "input": "What is the difference between a stock and a bond?",
+    "expected_output": "A stock represents ownership in a company, while a bond represents a loan to an issuer that typically pays interest and returns principal at maturity.",
+    "retrieval_context": [
+      "Stocks are equity securities that represent ownership interests. Bonds are debt securities where the issuer borrows money and typically pays interest."
+    ],
+    "additional_metadata": {
+      "intent": "qna",
+      "source": "knowledge_base",
+      "handled_by_central": false,
+      "expected_agents": [
+        "qna"
+      ]
+    }
+  },
+  {
+    "input": "What does average cost per share mean?",
+    "expected_output": "Average cost per share is the average price paid for each share, usually calculated as total purchase cost divided by total shares purchased.",
+    "retrieval_context": [
+      "Average cost per share is commonly calculated by dividing the total amount paid for a position by the number of shares acquired."
+    ],
+    "additional_metadata": {
+      "intent": "qna",
+      "source": "knowledge_base",
+      "handled_by_central": false,
+      "expected_agents": [
+        "qna"
+      ]
+    }
+  },
+  {
+    "input": "What does dividend yield mean?",
+    "expected_output": "Dividend yield is the annual dividend income from an investment divided by its current price, expressed as a percentage.",
+    "retrieval_context": [
+      "Dividend yield measures annual dividend income relative to the market price of an investment and is commonly expressed as a percentage."
+    ],
+    "additional_metadata": {
+      "intent": "qna",
+      "source": "knowledge_base",
+      "handled_by_central": false,
+      "expected_agents": [
+        "qna"
+      ]
+    }
+  },
+  {
+    "input": "Why does diversification reduce portfolio risk?",
+    "expected_output": "Diversification can reduce risk by spreading investments across assets that may not move together, lowering the impact of any single holding's poor performance.",
+    "retrieval_context": [
+      "Diversification spreads exposure across different assets or asset classes, which can reduce idiosyncratic risk when holdings are not perfectly correlated."
+    ],
+    "additional_metadata": {
+      "intent": "qna",
+      "source": "knowledge_base",
+      "handled_by_central": false,
+      "expected_agents": [
+        "qna"
+      ]
+    }
+  },
+  {
+    "input": "Is gold costlier than silver?",
+    "expected_output": "Gold is generally more expensive than silver per unit of weight because of factors such as scarcity, demand, market liquidity, and its role as a store of value.",
+    "retrieval_context": [
+      "Gold and silver are precious metals traded in global commodity markets. Gold typically trades at a higher price per ounce than silver due to scarcity, investment demand, and monetary-store-of-value uses."
+    ],
+    "additional_metadata": {
+      "intent": "qna",
+      "source": "knowledge_base",
+      "handled_by_central": false,
+      "expected_agents": [
+        "qna"
+      ]
+    }
+  }
+]

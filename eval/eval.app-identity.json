@@ -1,0 +1,41 @@
+[
+  {
+    "input": "Who are you?",
+    "expected_output": "I am Fincent, a personal financial assistant that can help with portfolio analysis and general finance questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "app_identity",
+      "source": "system_prompt",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "What can Fincent help me with?",
+    "expected_output": "Fincent can help with portfolio analysis and general finance or economics questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "app_identity",
+      "source": "system_prompt",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "What kind of assistant is Fincent?",
+    "expected_output": "Fincent is a personal financial assistant focused on portfolio analysis and finance-related questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "app_identity",
+      "source": "system_prompt",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  }
+]

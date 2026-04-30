@@ -72,6 +72,17 @@ def _enabled_specialist_intents(cfg: AppConfig) -> set[Intent]:
     return {intent for intent, enabled in mapping.items() if enabled}
 
 
+def _format_app_tools(cfg: AppConfig) -> str:
+    """Render app tool metadata for the central direct-answer prompt."""
+
+    if not cfg.app.tools:
+        return "      (none listed)"
+    return "\n".join(
+        f"      - {tool.name}: {tool.description or '(no description listed)'}"
+        for tool in cfg.app.tools
+    )
+
+
 def _fallback_plan(reason: str) -> RoutingPlan:
     """Return a safe fallback routing plan when parsing fails."""
     _logger.warning("Falling back to qna plan: %s", reason)
@@ -209,6 +220,7 @@ def answer_directly(
         app_version=cfg.app.version,
         app_description=cfg.app.description,
         app_about=cfg.app.about,
+        app_tools=_format_app_tools(cfg),
     )
     response = llm.invoke(
         [SystemMessage(content=system), HumanMessage(content=query)]

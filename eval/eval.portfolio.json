@@ -1,0 +1,123 @@
+[
+  {
+    "input": "How many shares of Nvidia (NVDA) do I own?",
+    "expected_output": "You own 200 shares of NVDA in the 'US Equities - Growth' account (ACC-001).",
+    "retrieval_context": [
+      "{ \"account_id\": \"ACC-001\", \"name\": \"US Equities - Growth\", \"ticker\": \"NVDA\", \"shares\": 200, \"avg_cost\": 220.0, \"current_price\": 875.4 }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "accounts.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "What is the total value of my AAPL holding in ACC-001?",
+    "expected_output": "The total market value is $132,510.00, calculated as 700 shares multiplied by the current price of $189.30.",
+    "retrieval_context": [
+      "{ \"account_id\": \"ACC-001\", \"ticker\": \"AAPL\", \"shares\": 700, \"current_price\": 189.3 }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "accounts.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "When did I make the opening deposit into my cash account?",
+    "expected_output": "The opening deposit of $160,000.00 was made on January 10, 2022.",
+    "retrieval_context": [
+      "{ \"transaction_id\": \"TXN-OPEN-SPAXX\", \"date\": \"2022-01-10\", \"amount\": 160000.0, \"note\": \"Opening cash balance\" }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "transactions.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "What was the advisory fee I paid at the end of 2023?",
+    "expected_output": "You paid an annual advisory fee of $450.00 on December 31, 2023.",
+    "retrieval_context": [
+      "{ \"transaction_id\": \"TXN-0030\", \"date\": \"2023-12-31\", \"type\": \"fee\", \"amount\": -450.0, \"note\": \"Annual advisory fee\" }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "transactions.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "List the dividend amounts received from PG in 2026.",
+    "expected_output": "You received a dividend of $329.00 from PG on March 20, 2026.",
+    "retrieval_context": [
+      "{ \"transaction_id\": \"TXN-D0276\", \"date\": \"2026-03-20\", \"type\": \"dividend\", \"ticker\": \"PG\", \"amount\": 329.0 }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "transactions.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "Explain the difference between a 'buy' and a 'dividend' transaction in my data.",
+    "expected_output": "A 'buy' transaction involves purchasing shares, such as AAPL on January 12, 2022, while a 'dividend' is a payment received from a holding, such as JNJ on March 20, 2023.",
+    "retrieval_context": [
+      "{ \"transaction_id\": \"TXN-OPEN-AAPL\", \"date\": \"2022-01-12\", \"type\": \"buy\", \"ticker\": \"AAPL\" }",
+      "{ \"transaction_id\": \"TXN-D0203\", \"date\": \"2023-03-20\", \"type\": \"dividend\", \"ticker\": \"JNJ\" }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "transactions.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "Define 'avg_cost' in the context of my holdings.",
+    "expected_output": "'avg_cost' is the average price paid per share for a specific holding, such as $148.50 for AAPL in ACC-001.",
+    "retrieval_context": [
+      "{ \"account_id\": \"ACC-001\", \"ticker\": \"AAPL\", \"shares\": 700, \"avg_cost\": 148.5 }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "accounts.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  },
+  {
+    "input": "What is the meaning of 'yield_pct' for my bond holdings?",
+    "expected_output": "'yield_pct' represents the annual income return on the investment, such as 3.85% for the BND ETF.",
+    "retrieval_context": [
+      "{ \"ticker\": \"BND\", \"shares\": 1500, \"yield_pct\": 3.85 }"
+    ],
+    "additional_metadata": {
+      "intent": "portfolio",
+      "source": "accounts.json",
+      "handled_by_central": false,
+      "expected_agents": [
+        "portfolio"
+      ]
+    }
+  }
+]

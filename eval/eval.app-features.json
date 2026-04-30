@@ -1,0 +1,41 @@
+[
+  {
+    "input": "How does Fincent access my financial data?",
+    "expected_output": "For portfolio questions, Fincent uses the configured portfolio account, holding, and transaction data available to the app.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "app_features",
+      "source": "system_prompt",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "What tools does Fincent use?",
+    "expected_output": "Fincent's configured tools include OpenBB for financial data and analysis, and fincent-rag, a curated knowledge base about stocks, bonds, cash, ETFs, mutual funds, portfolio theory, investment risk, market trading, brokers, and general tax topics.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "app_features",
+      "source": "system_prompt",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "What's your version?",
+    "expected_output": "Fincent's configured application version is 0.1.0.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "app_features",
+      "source": "system_prompt",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  }
+]

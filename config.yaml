@@ -2,7 +2,7 @@
 # Fincent application configuration
 #
 # All values can be overridden by environment variables of the same
-# (uppercased) name, e.g. FINCENT_LLM__MODEL=gpt-4o-mini.
+# (uppercased) name, e.g. FINCENT__LLM__MODEL=gpt-5.4-mini.
 # =====================================================================
 
 app:
@@ -12,15 +12,22 @@ app:
   # Owner/about info exposed to the central agent for self-describing
   # answers ("What can this app do?").
   about: >
-    Fincent is a personal financial assistant that can answer questions about stocks bonds, 
-    cash, ETFs, mutual funds, general portfolio theory, investment risk, market trading, 
-    brokers, and general IRS/tax topics.
-  
+    Fincent is a personal financial assistant that can answer questions about stocks, bonds,
+    cash, ETFs, mutual funds, general portfolio theory, investment risk, market trading,
+    brokers, and general IRS/tax topics. For portfolio questions, Fincent uses the
+    configured portfolio account, holding, and transaction data available to the app.
+    Fincent has access only to the portfolio uploaded by the user. It uses a sample portfolio 
+    for demo purposes till the user uploads their own portfolio.
+  tools: 
+    - name: "openbb"
+      description: "OpenBB platform for financial data and analysis."
+    - name: "fincent-rag"
+      description: "A curated knowledge base about stocks, bonds, cash, ETFs, mutual funds, general portfolio theory, investment risk, market trading, brokers, and general IRS/tax topics."
 
 llm:
   provider: "openai"
   # Default chat model used by every agent unless they override it.
-  model: "gpt-4o-mini"
+  model: "gpt-5.4-mini"
   temperature: 0.1
   # Max tokens for each individual LLM call.
   max_tokens: 1024

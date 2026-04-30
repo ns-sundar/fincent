@@ -1,0 +1,41 @@
+[
+  {
+    "input": "Hi, how are you?",
+    "expected_output": "I'm doing well and ready to help with finance-related questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "chit_chat",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "Thanks for the help.",
+    "expected_output": "You're welcome. I'm here whenever you want help with finance or your portfolio.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "chit_chat",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "Good morning.",
+    "expected_output": "Good morning. I can help with finance questions, or portfolio analysis when you're ready.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "chit_chat",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  }
+]

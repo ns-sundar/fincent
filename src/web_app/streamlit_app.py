@@ -78,8 +78,8 @@ _QNA_SUFFIX: str = "qna"
 _PORTFOLIO_SUFFIX: str = "portfolio"
 
 # Available chat models offered in the sidebar selector.
-_AVAILABLE_MODELS: List[str] = ["gpt-4o-mini", "gpt-5.4-nano", "gpt-5.4-mini", "gpt-5.4"]
-_DEFAULT_MODEL: str = _AVAILABLE_MODELS[0]
+_AVAILABLE_MODELS: List[str] = ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4", "gpt-4o-mini"]
+_DEFAULT_MODEL: str = "gpt-5.4-mini"
 _MODEL_STATE_KEY: str = "selected_model"
 
 _QNA_SUGGESTIONS: List[str] = [

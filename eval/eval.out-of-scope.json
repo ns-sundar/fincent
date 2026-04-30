@@ -1,0 +1,67 @@
+[
+  {
+    "input": "What is my full name and birth date?",
+    "expected_output": "I do not have your biographical profile, such as your full name or birth date, available here.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "out_of_scope",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "Where do I currently live and work?",
+    "expected_output": "I do not have access to your personal biography, home location, or employment history here.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "out_of_scope",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "Who won the 2022 FIFA World Cup?",
+    "expected_output": "That is outside my finance-focused scope; I can help with finance, economics, or portfolio-related questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "out_of_scope",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "What's the weather today?",
+    "expected_output": "I cannot help with weather updates, but I can help with finance, economics, or portfolio-related questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "out_of_scope",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  },
+  {
+    "input": "Is gold denser than silver?",
+    "expected_output": "That general science question is outside my finance-focused scope; I can help with finance, economics, or portfolio-related questions.",
+    "retrieval_context": [],
+    "additional_metadata": {
+      "intent": "out_of_scope",
+      "source": "central_policy",
+      "handled_by_central": true,
+      "expected_agents": [
+        "central"
+      ]
+    }
+  }
+]

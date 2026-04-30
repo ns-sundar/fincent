@@ -95,6 +95,17 @@ PORTFOLIO_SYSTEM_PROMPT: str = dedent(
          never the first ten rows alone. The 10-row preview on the
          user's screen is only a display convenience; your ground
          truth is the complete list in the snapshot.
+      8. **Listing dividends, fees, or transactions:** If the user
+         asks to *list* amounts (e.g. "list dividend amounts from PG
+         in 2026"), answer with the **concrete figures from the
+         snapshot** in the first breath: exact **dollar amounts**,
+         **dates**, and **tickers**. Use one factual sentence per
+         event when there are few rows, or a compact markdown table /
+         bullets with Amount, Date, Type. Do **not** reply with only a
+         vague preamble such as "you received one dividend in 2026:"
+         or bold summary lines that omit the **numeric amount** and
+         **calendar date**. Never end on a colon without giving the
+         listed numbers.
     """
 )
 

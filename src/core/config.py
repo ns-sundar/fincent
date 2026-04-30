@@ -22,13 +22,21 @@ class AppInfo(BaseModel):
     version: str = "0.1.0"
     description: str = ""
     about: str = ""
+    tools: List["AppTool"] = Field(default_factory=list)
+
+
+class AppTool(BaseModel):
+    """Tool/integration metadata exposed to the central app-features path."""
+
+    name: str
+    description: str = ""
 
 
 class LLMConfig(BaseModel):
     """Settings for the chat-LLM backend."""
 
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-5.4-mini"
     temperature: float = 0.1
     max_tokens: int = 1024
     request_timeout: int = 60

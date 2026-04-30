@@ -322,7 +322,7 @@ environment variable using the `FINCENT__SECTION__KEY` convention,
 for example:
 
 ```bash
-export FINCENT__LLM__MODEL=gpt-4o-mini
+export FINCENT__LLM__MODEL=gpt-5.4-mini
 export FINCENT__SERVER__PORT=8000
 export FINCENT__CHECKPOINTER__PATH=/data/checkpoints.sqlite
 
