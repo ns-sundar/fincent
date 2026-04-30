@@ -21,19 +21,19 @@ def _fake_llm(*responses: str) -> FakeListChatModel:
 # ---------------------------------------------------------------------
 
 
-def test_plan_route_central_handled_app_info():
-    """An app-info classification should set handled_by_central=True."""
+def test_plan_route_central_handled_app_identity():
+    """An app-identity classification should set handled_by_central=True."""
     payload = json.dumps(
         {
             "handled_by_central": True,
-            "intents": ["app_info"],
-            "rationale": "Asking what the app does.",
+            "intents": ["app_identity"],
+            "rationale": "Asking what the app is.",
         }
     )
     plan = plan_route("What can this app do?", llm=_fake_llm(payload))
 
     assert plan.handled_by_central is True
-    assert plan.intents == [Intent.APP_INFO]
+    assert plan.intents == [Intent.APP_IDENTITY]
 
 
 def test_plan_route_specialist_qna():
@@ -80,13 +80,41 @@ def test_plan_route_non_financial_small_talk_handled_centrally():
     payload = json.dumps(
         {
             "handled_by_central": True,
-            "intents": ["user_generic"],
+            "intents": ["chit_chat"],
             "rationale": "Greeting.",
         }
     )
     plan = plan_route("Hi there!", llm=_fake_llm(payload))
     assert plan.handled_by_central is True
-    assert plan.intents == [Intent.USER_GENERIC]
+    assert plan.intents == [Intent.CHIT_CHAT]
+
+
+def test_plan_route_central_handled_app_features():
+    """App feature questions should keep their finer-grained intent."""
+    payload = json.dumps(
+        {
+            "handled_by_central": True,
+            "intents": ["app_features"],
+            "rationale": "Asking about app features.",
+        }
+    )
+    plan = plan_route("What tools does Fincent use?", llm=_fake_llm(payload))
+    assert plan.handled_by_central is True
+    assert plan.intents == [Intent.APP_FEATURES]
+
+
+def test_plan_route_central_handled_out_of_scope():
+    """Out-of-scope questions should be refused by the central agent."""
+    payload = json.dumps(
+        {
+            "handled_by_central": True,
+            "intents": ["out_of_scope"],
+            "rationale": "Non-financial trivia.",
+        }
+    )
+    plan = plan_route("What's the capital of France?", llm=_fake_llm(payload))
+    assert plan.handled_by_central is True
+    assert plan.intents == [Intent.OUT_OF_SCOPE]
 
 
 def test_plan_route_strips_code_fence():
@@ -172,10 +200,15 @@ def test_plan_route_ignores_hint_for_disabled_specialist(monkeypatch):
 
 def test_answer_directly_attribution():
     """Direct answers must be attributed to the central agent."""
-    response = answer_directly("Hi!", llm=_fake_llm("Hello there."))
+    response = answer_directly(
+        "Hi!",
+        intent=Intent.CHIT_CHAT,
+        llm=_fake_llm("Hello there."),
+    )
     assert response.agent == AgentName.CENTRAL
     assert response.content == "Hello there."
     assert response.metadata.get("mode") == "direct"
+    assert response.metadata.get("intent") == "chit_chat"
 
 
 # ---------------------------------------------------------------------

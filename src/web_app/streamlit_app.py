@@ -15,11 +15,11 @@ The conversation is identified by a ``session_id`` query parameter
 The UI is organised as two tabs:
 
 * **QnA**       -- routes questions through the central planner.
-                   Generic non-financial chit-chat is answered by
-                   the central agent; generic financial questions
-                   route to the Q&A agent; anything that touches
-                   the user's own portfolio routes to the Portfolio
-                   agent.
+                   App identity/features, chit-chat, and out-of-scope
+                   requests are answered by the central agent; generic
+                   financial questions route to the Q&A agent; anything
+                   that touches the user's own portfolio routes to the
+                   Portfolio agent.
 * **Portfolio** -- same central-planner routing as QnA, plus a
                    right-hand graphics panel rendering plotly
                    charts / tables for the user's static portfolio

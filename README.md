@@ -53,8 +53,8 @@ The central agent has three responsibilities:
 
 1. **Plan**: Use the LLM to classify the user's intent and produce a
    `RoutingPlan`.
-2. **Direct answer**: For app-info / generic-user questions, answer
-   without invoking specialists.
+2. **Direct answer**: For app identity/features, chit-chat, and
+   out-of-scope questions, answer without invoking specialists.
 3. **Aggregate**: When one or more specialists run (possibly in
    parallel), merge their replies into a single final answer.
 
@@ -72,8 +72,10 @@ the Portfolio agent.
 
 | Query class | Example | Handled by |
 |---|---|---|
-| Non-financial chit-chat | “Hi, what's your name?” | **Central** (direct answer) |
-| App-info | “What can this app do?” | **Central** (direct answer) |
+| App identity | “Who are you?”, “What can you do?” | **Central** (direct answer) |
+| App features | “What tools does Fincent use?”, “What's your version?” | **Central** (direct answer) |
+| Chit-chat | “Hi, how are you?”, “Thanks for the help.” | **Central** (direct answer) |
+| Out of scope | “What's my name?”, “What's the weather today?” | **Central** (polite refusal) |
 | Generic financial, no personal data | “What is an ETF?”, “How are dividends taxed?” | **Q&A agent** (RAG over curated corpus) |
 | Touches the user's own portfolio (even if it also asks a general concept) | “Am I over-concentrated in AAPL?”, “Explain dividend taxation for my holdings.” | **Portfolio agent** (ReAct; may call OpenBB or RAG tools itself) |
 

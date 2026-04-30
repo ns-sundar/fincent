@@ -29,7 +29,12 @@ _logger = get_logger(__name__)
 # ---------------------------------------------------------------------
 
 # Intents the central agent answers itself.
-_SELF_INTENTS: set[Intent] = {Intent.APP_INFO, Intent.USER_GENERIC}
+_SELF_INTENTS: set[Intent] = {
+    Intent.APP_IDENTITY,
+    Intent.APP_FEATURES,
+    Intent.CHIT_CHAT,
+    Intent.OUT_OF_SCOPE,
+}
 
 
 def _strip_code_fence(text: str) -> str:
@@ -104,7 +109,7 @@ def plan_route(
             tab in the Streamlit UI pins ``Intent.PORTFOLIO``). When
             provided and the hinted specialist is enabled, the LLM
             classifier is skipped entirely and the plan is built from
-            the hint. Ignored for ``app_info`` / ``user_generic`` /
+            the hint. Ignored for central-handled intents /
             ``unknown`` hints and for disabled specialists.
 
     Returns:
@@ -152,7 +157,7 @@ def plan_route(
     # self-handled set; if it picked specialists, drop any that are
     # disabled in config.
     if handled_by_central:
-        intents = [i for i in intents if i in _SELF_INTENTS] or [Intent.USER_GENERIC]
+        intents = [i for i in intents if i in _SELF_INTENTS] or [Intent.OUT_OF_SCOPE]
     else:
         enabled = _enabled_specialist_intents(cfg)
         intents = [i for i in intents if i in enabled]
@@ -179,13 +184,15 @@ def plan_route(
 def answer_directly(
     query: str,
     *,
+    intent: Optional[Intent] = None,
     llm: Optional[BaseChatModel] = None,
     cfg: Optional[AppConfig] = None,
 ) -> AgentResponse:
-    """Produce a final answer for app-info / user-generic queries.
+    """Produce a final answer for central-handled queries.
 
     Args:
         query: The raw user message.
+        intent: The central-handled intent selected by the router.
         llm: Optional chat model (for tests).
         cfg: Optional config (for tests).
 
@@ -194,8 +201,10 @@ def answer_directly(
     """
     cfg = cfg or get_config()
     llm = llm or get_default_chat_model()
+    direct_intent = intent if intent in _SELF_INTENTS else Intent.OUT_OF_SCOPE
 
     system = DIRECT_ANSWER_SYSTEM_PROMPT.format(
+        intent=direct_intent.value,
         app_name=cfg.app.name,
         app_version=cfg.app.version,
         app_description=cfg.app.description,
@@ -207,7 +216,7 @@ def answer_directly(
     return AgentResponse(
         agent=AgentName.CENTRAL,
         content=str(response.content).strip(),
-        metadata={"mode": "direct"},
+        metadata={"mode": "direct", "intent": direct_intent.value},
     )
 
 

@@ -3,7 +3,8 @@
 Public entry points:
     - ``plan_route``: classify a user query into a ``RoutingPlan``.
     - ``answer_directly``: produce a final answer for queries the
-      central agent handles itself (app info / generic user chit-chat).
+      central agent handles itself (app identity/features, chit-chat,
+      and out-of-scope requests).
     - ``aggregate``: combine specialist responses into a single answer.
 """
 

@@ -55,8 +55,8 @@ def test_workflow_central_handled(patch_llm):
     plan_payload = json.dumps(
         {
             "handled_by_central": True,
-            "intents": ["app_info"],
-            "rationale": "App-info question.",
+            "intents": ["app_identity"],
+            "rationale": "App identity question.",
         }
     )
     direct_answer = "Fincent is a multi-agent financial assistant."
@@ -64,10 +64,11 @@ def test_workflow_central_handled(patch_llm):
 
     out = run_query(QueryRequest(query="What can this app do?"))
     assert out.plan.handled_by_central is True
-    assert out.plan.intents == [Intent.APP_INFO]
+    assert out.plan.intents == [Intent.APP_IDENTITY]
     assert out.answer == direct_answer
     assert len(out.agent_responses) == 1
     assert out.agent_responses[0].agent == AgentName.CENTRAL
+    assert out.agent_responses[0].metadata["intent"] == "app_identity"
 
 
 def test_workflow_routes_to_qna(patch_llm):

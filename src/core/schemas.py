@@ -23,12 +23,15 @@ class AgentName(str, Enum):
 class Intent(str, Enum):
     """High-level intent buckets recognised by the central router.
 
-    ``APP_INFO`` and ``USER_GENERIC`` are answered by the central agent
-    itself; everything else is delegated to one or more specialists.
+    App identity/features, chit-chat, and out-of-scope queries are
+    answered by the central agent itself; everything else is delegated
+    to one or more specialists.
     """
 
-    APP_INFO = "app_info"
-    USER_GENERIC = "user_generic"
+    APP_IDENTITY = "app_identity"
+    APP_FEATURES = "app_features"
+    CHIT_CHAT = "chit_chat"
+    OUT_OF_SCOPE = "out_of_scope"
     QNA = "qna"
     PORTFOLIO = "portfolio"
     UNKNOWN = "unknown"

@@ -67,9 +67,11 @@ def planner_node(state: GraphState) -> GraphState:
 
 
 def central_direct_node(state: GraphState) -> GraphState:
-    """Central agent answers directly (app-info / user-generic)."""
+    """Central agent answers directly for self-handled intents."""
     query = state["query"]
-    response = answer_directly(query)
+    plan = state["plan"]
+    intent = plan.intents[0] if plan.intents else None
+    response = answer_directly(query, intent=intent)
     return {"agent_responses": [response]}
 
 

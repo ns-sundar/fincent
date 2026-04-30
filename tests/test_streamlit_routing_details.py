@@ -34,7 +34,7 @@ def test_agents_involved_single_specialist_returns_that_specialist_only():
 
 def test_agents_involved_central_direct_when_handled_by_central():
     """With a direct central answer, the list should show 'central'."""
-    plan = {"handled_by_central": True, "intents": ["app_info"]}
+    plan = {"handled_by_central": True, "intents": ["app_identity"]}
     responses = [{"agent": "central", "content": "Fincent is ...", "metadata": {}}]
     assert _agents_involved(plan, responses) == ["central"]
 
