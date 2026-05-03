@@ -263,15 +263,20 @@ DeepEval metrics include:
 - **G-Eval** as the primary intent-aware task success metric. It compares
   actual output with expected output while allowing harmless wording
   differences.
-- **AnswerRelevancyMetric** for most intents.
-- **FaithfulnessMetric** when retrieval context is present.
-- **ContextualRecallMetric** when retrieval context is present.
-- **ContextualRelevancyMetric** when retrieval context is present.
+- **Fincent Helpful Relevancy** as a custom G-Eval relevancy rubric that
+  allows useful examples, calculations, citations, and brief related offers.
+- **FaithfulnessMetric** when retrieval context is actual model-visible
+  retrieval context.
+- **ContextualRecallMetric** when retrieval context is actual model-visible
+  retrieval context.
+- **ContextualRelevancyMetric** when retrieval context is actual
+  model-visible retrieval context.
 
-`chit_chat` and `out_of_scope` skip generic answer relevancy because polite
-redirects can be correct product behavior even when a generic relevancy
-judge would penalize them. For those intents, the custom G-Eval rubric is
-the source of truth.
+Fincent uses the custom helpful relevancy rubric instead of DeepEval's generic
+answer relevancy metric because examples, source sections, small tables, and
+brief reminders of Fincent's capabilities are often desirable. The contextual
+metrics are opt-in because golden snippets are often hints, not the exact
+context seen by the model during the live workflow.
 
 See `eval/README.md` for the eval-specific design and operating notes.
 

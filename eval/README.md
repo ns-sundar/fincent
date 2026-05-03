@@ -30,6 +30,9 @@ Each `eval.*.json` file is a JSON array of cases with:
 - `additional_metadata.intent`: expected router intent
 - `additional_metadata.handled_by_central`: expected routing mode
 - `additional_metadata.expected_agents`: expected responding agents
+- `additional_metadata.context_type`: optional context source label. It
+  defaults to `golden_hint`. Set it to `actual_retrieval` only when
+  `retrieval_context` contains the actual context the model saw.
 
 Current intent datasets:
 
@@ -69,7 +72,8 @@ Then it creates a DeepEval `LLMTestCase` from the final answer and runs
 LLM-judge metrics. **Before** those metrics, `actual_output` and
 `expected_output` are passed through ``eval.text_normalize.normalize_answer_for_eval``:
 Markdown emphasis (e.g. ``**bold**``) and common typography (Unicode dashes
-and curly quotes) are stripped so judges compare substance, not formatting.
+and curly quotes), citation markers, and trailing ``## Sources`` sections
+are stripped so judges compare substance, not formatting.
 
 Each `LLMTestCase` is named as `<intent>: <input>` and tagged with the
 intent, dataset file, and source. Pytest parametrization also uses a
@@ -82,19 +86,27 @@ output, and actual output for quick diagnosis.
 The primary metric is a custom `GEval` rubric named
 `Fincent Intent Task Success`. It checks task completion, expected-answer
 agreement, entity/number/date preservation, intent behavior, and whether
-the answer avoids unsupported claims.
+the answer avoids unsupported claims. It receives retrieval context only
+when `additional_metadata.context_type` is `actual_retrieval`.
 
-Most cases also use `AnswerRelevancyMetric`. It is intentionally skipped
-for `chit_chat` and `out_of_scope` because those policy-style responses
-are expected to include brief offers or redirects back to finance and
-portfolio help; generic relevancy scoring can incorrectly penalize that
-desired behavior.
+All cases also use a custom `GEval` rubric named
+`Fincent Helpful Relevancy`. This replaces DeepEval's generic
+`AnswerRelevancyMetric` because Fincent's desired behavior allows helpful
+examples, calculations, citations, small tables, and brief related offers
+when they support the user's question. It also allows chit-chat responses to
+include a short reminder of what Fincent can help with.
 
-Cases with non-empty `retrieval_context` additionally use:
+Cases with non-empty `retrieval_context` additionally use contextual
+metrics only when `additional_metadata.context_type` is
+`actual_retrieval`:
 
 - `FaithfulnessMetric`
 - `ContextualRecallMetric`
 - `ContextualRelevancyMetric`
+
+This avoids judging faithfulness or contextual relevance against golden
+hint snippets that the model did not actually see during the live
+end-to-end workflow.
 
 ## Run
 

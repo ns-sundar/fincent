@@ -35,6 +35,7 @@ class Intent(str, Enum):
     QNA = "qna"
     PORTFOLIO = "portfolio"
     UNKNOWN = "unknown"
+    MODERATED = "moderated"
 
 
 class RoutingPlan(BaseModel):

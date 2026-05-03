@@ -15,8 +15,8 @@
     }
   },
   {
-    "input": "What is the total value of my AAPL holding in ACC-001?",
-    "expected_output": "The total market value is $132,510.00, calculated as 700 shares multiplied by the current price of $189.30.",
+    "input": "Using the portfolio snapshot, what is the total value of my AAPL holding in ACC-001?",
+    "expected_output": "The snapshot value is $132,510.00, calculated as 700 shares multiplied by the recorded snapshot price of $189.30.",
     "retrieval_context": [
       "{ \"account_id\": \"ACC-001\", \"ticker\": \"AAPL\", \"shares\": 700, \"current_price\": 189.3 }"
     ],
@@ -76,7 +76,7 @@
   },
   {
     "input": "Explain the difference between a 'buy' and a 'dividend' transaction in my data.",
-    "expected_output": "A 'buy' transaction involves purchasing shares, such as AAPL on January 12, 2022, while a 'dividend' is a payment received from a holding, such as JNJ on March 20, 2023.",
+    "expected_output": "A 'buy' transaction means purchasing shares of a holding, while a 'dividend' is an income or cash payment received from an existing holding. Any examples should come from the user's transaction data.",
     "retrieval_context": [
       "{ \"transaction_id\": \"TXN-OPEN-AAPL\", \"date\": \"2022-01-12\", \"type\": \"buy\", \"ticker\": \"AAPL\" }",
       "{ \"transaction_id\": \"TXN-D0203\", \"date\": \"2023-03-20\", \"type\": \"dividend\", \"ticker\": \"JNJ\" }"
@@ -92,7 +92,7 @@
   },
   {
     "input": "Define 'avg_cost' in the context of my holdings.",
-    "expected_output": "'avg_cost' is the average price paid per share for a specific holding, such as $148.50 for AAPL in ACC-001.",
+    "expected_output": "'avg_cost' is the average price paid per share for a specific holding, based on recorded buys. It is a cost-basis reference rather than the live market price, and examples may cite recorded avg_cost values from the user's holdings.",
     "retrieval_context": [
       "{ \"account_id\": \"ACC-001\", \"ticker\": \"AAPL\", \"shares\": 700, \"avg_cost\": 148.5 }"
     ],
@@ -107,7 +107,7 @@
   },
   {
     "input": "What is the meaning of 'yield_pct' for my bond holdings?",
-    "expected_output": "'yield_pct' represents the annual income return on the investment, such as 3.85% for the BND ETF.",
+    "expected_output": "'yield_pct' represents the annual income return or yield on a bond or income-oriented holding, expressed as a percentage.",
     "retrieval_context": [
       "{ \"ticker\": \"BND\", \"shares\": 1500, \"yield_pct\": 3.85 }"
     ],

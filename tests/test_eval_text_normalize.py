@@ -18,3 +18,13 @@ def test_normalizes_en_dash():
 def test_plain_text_unchanged_up_to_whitespace():
     plain = "You own 200 shares of NVDA in the 'US Equities - Growth' account (ACC-001)."
     assert normalize_answer_for_eval(plain) == plain
+
+
+def test_strips_citations_and_sources_section():
+    raw = """Diversification can reduce idiosyncratic risk [1][3].
+
+## Sources
+[1] Diversification guide (SEC)
+https://example.com/sec
+"""
+    assert normalize_answer_for_eval(raw) == "Diversification can reduce idiosyncratic risk."

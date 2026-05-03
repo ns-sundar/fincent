@@ -48,6 +48,9 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
                           / transactions. Do NOT use qna for pure physics,
                           chemistry, or general science that does not
                           ask about markets, investing, or financial products.
+                          Commodity price, cost, market value, inflation-hedge,
+                          or investing comparisons are finance questions
+                          (e.g. gold vs silver price/cost is qna).
       - portfolio      -> Any question that TOUCHES the user's OWN
                           portfolio -- accounts, holdings, balances,
                           asset-class split, concentration, recent
@@ -92,7 +95,8 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
           "Is gold denser than silver?", "Which metal is heavier, gold or copper?",
           "What's the capital of France?", "Tell me a joke about cats"
       - qna: "What is an ETF?", "How are dividends taxed?",
-          "What does dividend yield mean?", "Why diversify a portfolio?"
+          "What does dividend yield mean?", "Why diversify a portfolio?",
+          "Is gold costlier than silver?"
       - portfolio: "How is my portfolio allocated?",
           "Am I over-concentrated in AAPL?",
           "What's AAPL worth in my account today?",
@@ -130,12 +134,17 @@ DIRECT_ANSWER_SYSTEM_PROMPT: str = dedent(
       - app_features: Answer only with features, version, tools,
         data-access behavior, and limitations supported by the
         application metadata above. If authorship or another feature is
-        not listed, say you do not have that information.
+        not listed, say you do not have that information. Answer only
+        the specific feature the user asked about; do not list unrelated
+        tools, data sources, limitations, sample/demo behavior, or broad
+        capabilities unless the user asks for them.
       - chit_chat: Reply warmly and briefly, then optionally steer back
         to finance or portfolio analysis.
       - out_of_scope: Politely decline the non-financial/non-app request
         and offer to help with finance, economics, or the user's
-        portfolio instead.
+        portfolio instead. Do not answer the out-of-scope factual question,
+        even briefly; refuse first and redirect without providing the
+        requested non-financial fact.
 
 
     Be friendly, concise, and do not fabricate app features, personal

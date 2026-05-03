@@ -1,7 +1,7 @@
 [
   {
     "input": "How does Fincent access my financial data?",
-    "expected_output": "For portfolio questions, Fincent uses the configured portfolio account, holding, and transaction data available to the app.",
+    "expected_output": "Fincent uses configured or uploaded portfolio account, holding, and transaction data available to the app.",
     "retrieval_context": [],
     "additional_metadata": {
       "intent": "app_features",

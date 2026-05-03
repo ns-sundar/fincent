@@ -30,7 +30,6 @@ Startup behaviour:
 from __future__ import annotations
 
 import json
-import os
 import re
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -39,7 +38,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from markdown_it import MarkdownIt
-from openai import AsyncOpenAI, OpenAIError
+from openai import OpenAIError
 from pydantic import BaseModel, Field
 
 from src.agents.portfolio.mcp_tools import (
@@ -50,6 +49,7 @@ from src.agents.portfolio.loader import load_portfolio
 from src.agents.portfolio.seed import seed_portfolio_if_needed
 from src.core.llm import get_current_model, set_current_model
 from src.core.config import AppConfig, get_config
+from src.core.moderation import REJECTION_PREFIX, flagged_categories, moderate_query
 from src.core.schemas import QueryRequest, QueryResponse
 from src.rag import status as rag_status_mod
 from src.rag.ingest import ingest_if_needed
@@ -63,7 +63,6 @@ from src.workflow.graph import (
 )
 
 _logger = get_logger(__name__)
-_MODERATION_MODEL = "omni-moderation-latest"
 _QUERY_PATH = "/query"
 _MAX_MARKDOWN_LOG_CHARS = 8000
 _MARKDOWN = MarkdownIt("commonmark").enable("table")
@@ -145,31 +144,13 @@ def _restore_request_body(request: Request, body: bytes) -> None:
 
 
 def _flagged_categories(moderation: Any) -> List[str]:
-    """Return the flagged category names from an OpenAI moderation response."""
-    if not getattr(moderation, "results", None):
-        return []
-    result = moderation.results[0]
-    if not bool(getattr(result, "flagged", False)):
-        return []
-    categories = getattr(result, "categories", None)
-    if categories is None:
-        return []
-    raw = (
-        categories.model_dump(by_alias=True)
-        if hasattr(categories, "model_dump")
-        else dict(categories)
-    )
-    return sorted(str(name) for name, flagged in raw.items() if flagged)
+    """Delegate to the shared moderation helper."""
+    return flagged_categories(moderation)
 
 
 async def _moderate_query_text(query: str) -> List[str]:
-    """Run the user's query through OpenAI Moderation and return categories."""
-    client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    moderation = await client.moderations.create(
-        model=_MODERATION_MODEL,
-        input=query,
-    )
-    return _flagged_categories(moderation)
+    """Delegate to the shared moderation helper."""
+    return await moderate_query(query)
 
 
 def _response_media_type(response: Response) -> str:
@@ -366,10 +347,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
                 return JSONResponse(
                     status_code=400,
                     content={
-                        "detail": (
-                            "This query violates the site's policy for these "
-                            "categories."
-                        ),
+                        "detail": REJECTION_PREFIX,
                         "categories": categories,
                     },
                 )

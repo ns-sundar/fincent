@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -27,6 +27,8 @@ class EvalCase:
     source: str
     handled_by_central: bool
     expected_agents: list[str]
+    context_type: str
+    expected_moderation_categories: list[str] = field(default_factory=list)
 
     @property
     def display_name(self) -> str:
@@ -88,6 +90,10 @@ def _case_from_row(path: Path, index: int, row: Any) -> EvalCase:
         source=_require_str(metadata, "source", context=context),
         handled_by_central=_require_bool(metadata, "handled_by_central", context=context),
         expected_agents=_require_str_list(metadata, "expected_agents", context=context),
+        context_type=str(metadata.get("context_type", "golden_hint")),
+        expected_moderation_categories=[
+            str(c) for c in (metadata.get("expected_moderation_categories") or [])
+        ],
     )
 
 

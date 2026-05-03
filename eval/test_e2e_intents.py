@@ -27,11 +27,18 @@ from src.agents.portfolio.mcp_tools import (  # noqa: E402
     start_portfolio_mcp_sessions,
     stop_portfolio_mcp_sessions,
 )
-from src.core.schemas import QueryRequest  # noqa: E402
+from src.core.moderation import moderate_query, rejection_message  # noqa: E402
+from src.core.schemas import Intent, QueryRequest  # noqa: E402
 from src.workflow.graph import build_graph, run_query  # noqa: E402
 
 
-CASES = load_eval_cases()
+_ALL_CASES = load_eval_cases()
+
+# Moderated cases short-circuit at the HTTP middleware — they never enter the
+# LangGraph workflow, so they need their own test that calls the moderation
+# API directly rather than run_query().
+MODERATED_CASES = [c for c in _ALL_CASES if c.intent == Intent.MODERATED]
+CASES = [c for c in _ALL_CASES if c.intent != Intent.MODERATED]
 
 
 class _BackgroundEventLoop:
@@ -154,3 +161,39 @@ def test_fincent_intent_e2e(case: EvalCase, eval_graph) -> None:
         assert_test(test_case, metrics_for_case(case))
     except AssertionError as exc:
         raise AssertionError(str(exc) + _case_report(case, response.answer)) from exc
+
+
+@pytest.mark.parametrize("case", MODERATED_CASES, ids=case_ids(MODERATED_CASES))
+def test_fincent_moderated_e2e(case: EvalCase) -> None:
+    """Verify illicit-content queries are caught by the moderation API.
+
+    These cases never enter the LangGraph workflow.  The test calls the
+    OpenAI Moderation API directly and asserts:
+      1. The query is flagged (at least one category returned).
+      2. Every category family listed in ``expected_moderation_categories``
+         matches at least one actual flagged category (exact match or
+         sub-category prefix, e.g. ``"self-harm"`` matches
+         ``"self-harm/intent"``).
+      3. The formatted rejection message matches the single-line format that
+         the API client surfaces to the Streamlit UI.
+    """
+    categories = asyncio.run(moderate_query(case.input))
+
+    assert categories, (
+        f"Expected moderation to flag {case.input!r} but no categories were returned."
+    )
+
+    for expected_family in case.expected_moderation_categories:
+        matched = any(
+            actual == expected_family or actual.startswith(expected_family + "/")
+            for actual in categories
+        )
+        assert matched, (
+            f"Expected category family {expected_family!r} not found in "
+            f"actual flagged categories {categories} for input {case.input!r}."
+        )
+
+    actual_rejection = rejection_message(categories)
+    assert actual_rejection.startswith(
+        "This query violates the site's policy for these categories."
+    ), f"Unexpected rejection format: {actual_rejection!r}"
