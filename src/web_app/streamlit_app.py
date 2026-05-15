@@ -560,6 +560,25 @@ def _tools_called(agent_payloads: List[Dict]) -> List[str]:
     return tools
 
 
+def _tool_limit_notes(agent_payloads: List[Dict]) -> List[str]:
+    """Describe any provider-limit tool pruning recorded by specialists."""
+
+    notes: List[str] = []
+    for ar in agent_payloads:
+        meta = ar.get("metadata") or {}
+        dropped = int(meta.get("dropped_tool_count") or 0)
+        available = int(meta.get("available_tool_count") or meta.get("tool_count") or 0)
+        bound = int(meta.get("tool_count") or 0)
+        if dropped <= 0:
+            continue
+        agent = str(ar.get("agent", "agent") or "agent")
+        notes.append(
+            f"{agent}: bound {bound} of {available} available tools; "
+            f"dropped {dropped} lower-priority tools to stay within provider limits."
+        )
+    return notes
+
+
 def _data_sources_footprint_notes(agent_payloads: List[Dict]) -> List[str]:
     """Collect unique FMP / free-data disclaimers from specialist metadata."""
 
@@ -618,6 +637,9 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
         tools_line = ", ".join(tools) if tools else "(none)"
         st.markdown(f"**Agents involved:** {agents_line}")
         st.markdown(f"**Tools called:** {tools_line}")
+
+        for note in _tool_limit_notes(agent_payloads):
+            st.caption(note)
 
         for note in _data_sources_footprint_notes(agent_payloads):
             st.info(note)

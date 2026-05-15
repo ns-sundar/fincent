@@ -200,6 +200,38 @@ def test_market_research_answer_invokes_mcp_tools_and_returns_final_text(monkeyp
     assert call_log == [{"symbol": "NVDA"}]
 
 
+def test_market_research_caps_bound_tools_for_openai_limit(monkeypatch):
+    _force_fmp_free_tier(monkeypatch)
+    monkeypatch.delenv("FINCENT_MARKET_RESEARCH_MAX_BOUND_TOOLS", raising=False)
+    tools = [
+        SimpleNamespace(name=f"crypto_low_value_{idx}")
+        for idx in range(142)
+    ] + [SimpleNamespace(name="tavily_search")]
+
+    response = market_research_answer(
+        "Compare Procter Gamble vs Unilever",
+        llm=_fake_llm("The comparison depends on growth, margins, and valuation."),
+        tools=tools,
+    )
+
+    assert response.metadata["available_tool_count"] == 143
+    assert response.metadata["tool_count"] == 128
+    assert response.metadata["dropped_tool_count"] == 15
+    assert "tavily_search" in response.metadata["tool_names"]
+
+
+def test_market_research_bound_tool_cap_env_cannot_exceed_provider_limit(monkeypatch):
+    from src.agents.market_research.agent import _select_tools_for_binding
+
+    monkeypatch.setenv("FINCENT_MARKET_RESEARCH_MAX_BOUND_TOOLS", "999")
+    tools = [SimpleNamespace(name=f"tool_{idx}") for idx in range(130)]
+
+    selected, dropped = _select_tools_for_binding(tools)
+
+    assert len(selected) == 128
+    assert dropped == 2
+
+
 def test_merge_openbb_coerces_yfinance_to_fmp_for_equity_fundamental_ratios():
     from src.agents.market_research.agent import _merge_openbb_tool_args
 

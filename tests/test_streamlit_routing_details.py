@@ -14,6 +14,7 @@ from src.web_app.streamlit_app import (
     _agents_involved,
     _agent_error_details,
     _data_sources_footprint_notes,
+    _tool_limit_notes,
     _tools_called,
 )
 
@@ -159,6 +160,24 @@ def test_data_sources_footprint_notes_dedupes_and_skips_invalid():
         {"agent": "qna", "content": "z", "metadata": {"data_sources_note": 123}},
     ]
     assert _data_sources_footprint_notes(responses) == [note]
+
+
+def test_tool_limit_notes_describes_pruned_tools():
+    responses = [
+        {
+            "agent": "market_research",
+            "content": "ok",
+            "metadata": {
+                "tool_count": 128,
+                "available_tool_count": 143,
+                "dropped_tool_count": 15,
+            },
+        }
+    ]
+    assert _tool_limit_notes(responses) == [
+        "market_research: bound 128 of 143 available tools; dropped 15 "
+        "lower-priority tools to stay within provider limits."
+    ]
 
 
 def test_agent_error_details_collects_diagnostics():

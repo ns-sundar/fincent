@@ -33,6 +33,100 @@ from src.utils.logging import get_logger
 _logger = get_logger(__name__)
 
 _MAX_TOOL_ITERATIONS: int = 8
+_OPENAI_MAX_BOUND_TOOLS: int = 128
+
+
+def _max_bound_tools() -> int:
+    """Provider-safe maximum number of tools to bind to the chat model."""
+
+    raw = os.environ.get("FINCENT_MARKET_RESEARCH_MAX_BOUND_TOOLS", "").strip()
+    if not raw:
+        return _OPENAI_MAX_BOUND_TOOLS
+    try:
+        return max(1, min(int(raw), _OPENAI_MAX_BOUND_TOOLS))
+    except ValueError:
+        _logger.warning(
+            "Invalid FINCENT_MARKET_RESEARCH_MAX_BOUND_TOOLS=%r; using %d",
+            raw,
+            _OPENAI_MAX_BOUND_TOOLS,
+        )
+        return _OPENAI_MAX_BOUND_TOOLS
+
+
+def _market_research_tool_priority(tool: Any) -> int:
+    """Rank tools so provider caps keep the most useful market-research routes."""
+
+    name = str(getattr(tool, "name", "") or "").lower()
+    if name in {"tavily_search", "tavily_extract"}:
+        return 1000
+
+    score = 0
+    high_value_terms = (
+        "profile",
+        "quote",
+        "historical",
+        "price",
+        "financial",
+        "income",
+        "balance",
+        "cash",
+        "ratio",
+        "metric",
+        "estimate",
+        "analyst",
+        "rating",
+        "news",
+        "sentiment",
+        "filing",
+        "sec",
+        "company",
+        "peer",
+        "earnings",
+        "revenue",
+        "growth",
+        "dividend",
+    )
+    for term in high_value_terms:
+        if term in name:
+            score += 10
+
+    lower_value_terms = (
+        "crypto",
+        "forex",
+        "currency",
+        "commodity",
+        "options",
+        "futures",
+        "calendar",
+    )
+    for term in lower_value_terms:
+        if term in name:
+            score -= 20
+    return score
+
+
+def _select_tools_for_binding(tools: List[Any]) -> Tuple[List[Any], int]:
+    """Keep the bound tool array within provider limits, preserving useful tools."""
+
+    limit = _max_bound_tools()
+    if len(tools) <= limit:
+        return list(tools), 0
+
+    indexed = list(enumerate(tools))
+    selected = sorted(
+        indexed,
+        key=lambda item: (_market_research_tool_priority(item[1]), -item[0]),
+        reverse=True,
+    )[:limit]
+    selected.sort(key=lambda item: item[0])
+    dropped = len(tools) - len(selected)
+    _logger.warning(
+        "Market Research: binding %d/%d tools to stay within provider limit %d.",
+        len(selected),
+        len(tools),
+        limit,
+    )
+    return [tool for _, tool in selected], dropped
 
 
 def _tools_by_name(tools: List[Any]) -> Dict[str, Any]:
@@ -209,6 +303,8 @@ def answer(
     llm = llm or get_default_chat_model()
     if tools is None:
         tools = get_market_research_tools(cfg)
+    all_tool_count = len(tools)
+    tools, dropped_tool_count = _select_tools_for_binding(tools)
     tool_names = [getattr(t, "name", "?") for t in tools]
 
     messages: List[Any] = [
@@ -244,6 +340,8 @@ def answer(
 
     meta: Dict[str, Any] = {
         "tool_count": len(tools),
+        "available_tool_count": all_tool_count,
+        "dropped_tool_count": dropped_tool_count,
         "tool_names": tool_names,
         "tools_invoked": tools_invoked,
     }
