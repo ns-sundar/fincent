@@ -123,16 +123,34 @@ Fincent is configured for HuggingFace Spaces with the Docker SDK.
 4. For Market Research, also add `TAVILY_API_KEY`,
    `ALPHA_VANTAGE_API_KEY`, and `FMP_ACCESS_TOKEN` (or `FMP_API_KEY`) as
    Space secrets.
-5. Push this repository or connect it to GitHub.
+5. Optional but recommended: enable **Persistent Storage** for the Space so
+   `/data/checkpoints.sqlite`, `/data/vector_db/`, and `/data/portfolio/`
+   survive restarts.
+6. Push this repository or connect it to GitHub.
 
 The container exposes Streamlit on `$PORT` (default `7860`) and runs
 FastAPI internally on `API_PORT` (default `8000`). The Docker entrypoint
-starts FastAPI first, waits for `GET /health`, then starts Streamlit so the
-UI does not race the API.
+starts FastAPI in the background, then starts Streamlit immediately so
+HuggingFace Spaces sees a public listener quickly even while FastAPI performs
+first-boot startup work such as RAG ingestion. Until FastAPI is healthy, the UI
+shows the backend as unreachable and user queries will fail cleanly rather than
+causing the container to restart.
 
-HuggingFace Spaces mounts `/data`, which Fincent uses for checkpoints, the
-FAISS index, and portfolio runtime data. The image intentionally does not
-create `/data`; the platform provides it.
+The Docker image installs the runtime CLIs needed by the MCP servers:
+`openbb-mcp`, `uvx` (via `uv`), `tavily-mcp` (via Node/npm), and Python
+`fmp-mcp`. The entrypoint also creates the runtime directories under `/data` if
+they are missing. Without
+Persistent Storage, `/data` is still writable but ephemeral; with Persistent
+Storage, the FAISS index and session/portfolio data are reused after rebuilds.
+
+Space secrets and variables:
+
+- `OPENAI_API_KEY` is required.
+- `FMP_ACCESS_TOKEN` or `FMP_API_KEY` enables FMP Starter-plan endpoints.
+- `TAVILY_API_KEY` and `ALPHA_VANTAGE_API_KEY` are optional but recommended for
+  richer Market Research.
+- `FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS` defaults to `900` in Docker so
+  first-boot RAG ingestion has time to finish before Streamlit starts.
 
 ---
 

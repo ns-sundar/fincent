@@ -35,7 +35,7 @@ def test_load_default_config(monkeypatch):
     assert cfg.rag.mcp_server.enabled is False
     assert cfg.rag.mcp_server.transport == "stdio"
     assert cfg.rag.mcp_server.tool_name == "rag_search"
-    assert cfg.server.startup_health_wait_seconds == 300
+    assert cfg.server.startup_health_wait_seconds == 900
     assert cfg.server.healthcheck_interval_seconds == 90
 
 

@@ -55,7 +55,7 @@ class ServerConfig(BaseModel):
     cors_origins: List[str] = Field(default_factory=lambda: ["*"])
     # Container / HF Spaces: scripts/docker-entrypoint.sh and Dockerfile HEALTHCHECK
     # should stay aligned with these values (see README).
-    startup_health_wait_seconds: int = 300
+    startup_health_wait_seconds: int = 900
     healthcheck_interval_seconds: int = 90
 
 

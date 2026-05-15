@@ -52,6 +52,9 @@ langchain-mcp-adapters>=0.1.9,<0.2
 # configured with API keys in ``~/.openbb_platform/user_settings.json``.
 openbb-mcp-server>=1.4.0
 openbb>=4.3.0
+# Financial Modeling Prep MCP server. Uses the same FMP key aliases resolved
+# by src/agents/market_research/mcp_tools.py.
+fmp-mcp>=0.3.3
 
 # --- Config / data ---
 pydantic>=2.7.0

@@ -13,7 +13,9 @@ __pycache__
 .mypy_cache
 .ruff_cache
 .venv
+**/.venv
 venv
+**/venv
 *.egg-info
 .eggs
 
@@ -24,7 +26,10 @@ venv
 
 # Tests / CI (not needed at runtime)
 tests
+eval
+.deepeval
 
 # Misc
 *.log
 .DS_Store
+orig.README.md

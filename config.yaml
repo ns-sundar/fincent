@@ -54,7 +54,7 @@ server:
   # runs in the ASGI lifespan before the app serves; keep this >= worst-case
   # ingestion time. Used by scripts/docker-entrypoint.sh; Dockerfile
   # HEALTHCHECK start-period should match.
-  startup_health_wait_seconds: 300
+  startup_health_wait_seconds: 900
   # Docker HEALTHCHECK: seconds between probes after the start-period (steady
   # state). The Dockerfile hardcodes this; override via rebuild or edit Dockerfile.
   healthcheck_interval_seconds: 90
@@ -240,12 +240,11 @@ market_research:
         TAVILY_API_KEY: "${TAVILY_API_KEY}"
     fmp:
       enabled: true
-      command: "npx"
-      args:
-        - "-y"
-        - "fmp-mcp"
+      command: "fmp-mcp"
+      args: []
       env:
         FMP_ACCESS_TOKEN: "${FMP_ACCESS_TOKEN}"
+        FMP_API_KEY: "${FMP_ACCESS_TOKEN}"
         DYNAMIC_TOOL_DISCOVERY: "true"
 
 checkpointer:

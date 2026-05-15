@@ -238,3 +238,4 @@ def test_market_research_loader_fmp_accepts_fmp_api_key_alias(monkeypatch):
 
     assert "fmp" in specs
     assert specs["fmp"]["env"]["FMP_ACCESS_TOKEN"] == "fmp-secret-from-alias"
+    assert specs["fmp"]["env"]["FMP_API_KEY"] == "fmp-secret-from-alias"
