@@ -58,12 +58,9 @@ Prerequisites:
 - Python 3.11+
 - `OPENAI_API_KEY`
 - Optional API keys for the Market Research agent:
-  `TAVILY_API_KEY`, `ALPHA_VANTAGE_API_KEY`, and `FMP_ACCESS_TOKEN` (or
-  `FMP_API_KEY` as an alias)
+  `FMP_ACCESS_TOKEN` (or `FMP_API_KEY` as an alias)
 - A writable `/data` directory, or overrides for the checkpoint, vector DB,
   and portfolio data paths
-- Optional system packages for richer PDF ingestion:
-  `poppler-utils`, `tesseract-ocr`, and `libmagic1`
 
 Run locally:
 
@@ -120,9 +117,8 @@ Fincent is configured for HuggingFace Spaces with the Docker SDK.
 1. Create a new Space.
 2. Select **Docker** as the SDK.
 3. Add `OPENAI_API_KEY` as a Space secret.
-4. For Market Research, also add `TAVILY_API_KEY`,
-   `ALPHA_VANTAGE_API_KEY`, and `FMP_ACCESS_TOKEN` (or `FMP_API_KEY`) as
-   Space secrets.
+4. For Market Research, also add `FMP_ACCESS_TOKEN` (or `FMP_API_KEY`) as a
+   Space secret.
 5. Optional but recommended: enable **Persistent Storage** for the Space so
    `/data/checkpoints.sqlite`, `/data/vector_db/`, and `/data/portfolio/`
    survive restarts.
@@ -136,19 +132,24 @@ first-boot startup work such as RAG ingestion. Until FastAPI is healthy, the UI
 shows the backend as unreachable and user queries will fail cleanly rather than
 causing the container to restart.
 
-The Docker image installs the runtime CLIs needed by the MCP servers:
-`openbb-mcp`, `uvx` (via `uv`), `tavily-mcp` (via Node/npm), and Python
-`fmp-mcp`. The entrypoint also creates the runtime directories under `/data` if
-they are missing. Without
+The Docker image installs the runtime pieces needed by the default MCP servers:
+`openbb-mcp` and the Python `fmp-mcp` package, invoked as
+`python -m fmp.server`. The entrypoint also creates the runtime directories
+under `/data` if they are missing. Without
 Persistent Storage, `/data` is still writable but ephemeral; with Persistent
 Storage, the FAISS index and session/portfolio data are reused after rebuilds.
+PDF ingestion uses the lightweight `pypdf` path in Docker to avoid pulling large
+OCR/vision packages such as Torch and OpenCV into the image.
 
 Space secrets and variables:
 
 - `OPENAI_API_KEY` is required.
 - `FMP_ACCESS_TOKEN` or `FMP_API_KEY` enables FMP Starter-plan endpoints.
-- `TAVILY_API_KEY` and `ALPHA_VANTAGE_API_KEY` are optional but recommended for
-  richer Market Research.
+- `TAVILY_API_KEY` is optional and enables native Python Tavily search/extract
+  tools without Node/npm or `npx`.
+- `ALPHA_VANTAGE_API_KEY` is optional; the Alpha Vantage MCP server is disabled
+  by default in Docker because its current package requires Python 3.13 while
+  the app image uses Python 3.11.
 - `FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS` defaults to `900` in Docker so
   first-boot RAG ingestion has time to finish before Streamlit starts.
 
@@ -492,8 +493,7 @@ export FINCENT__RAG__USE_MMR=true
 export FINCENT__PORTFOLIO__TOOLS__OPENBB__ENABLED=true
 export FINCENT__PORTFOLIO__TOOLS__RAG__ENABLED=true
 
-export TAVILY_API_KEY=...
-export ALPHA_VANTAGE_API_KEY=...
+export TAVILY_API_KEY=...  # Optional; enables native Tavily tools.
 export FMP_ACCESS_TOKEN=...
 # Or: export FMP_API_KEY=...  (same token; accepted as an alias)
 # Optional: force free-tier behavior even when an FMP key is configured.
@@ -502,8 +502,10 @@ export FMP_ACCESS_TOKEN=...
 # export FINCENT_OPENBB_ALLOW_INTRINIO=true
 # export INTRINIO_API_KEY=...
 export FINCENT__MARKET_RESEARCH__TOOLS__OPENBB__ENABLED=true
-export FINCENT__MARKET_RESEARCH__TOOLS__ALPHA_VANTAGE__ENABLED=true
-export FINCENT__MARKET_RESEARCH__TOOLS__TAVILY__ENABLED=true
+# Alpha Vantage MCP currently requires Python 3.13; disabled in the Docker image.
+# export FINCENT__MARKET_RESEARCH__TOOLS__ALPHA_VANTAGE__ENABLED=true
+# Tavily MCP requires Node/npm; leave disabled unless using a custom image.
+# export FINCENT__MARKET_RESEARCH__TOOLS__TAVILY__ENABLED=true
 export FINCENT__MARKET_RESEARCH__TOOLS__FMP__ENABLED=true
 ```
 

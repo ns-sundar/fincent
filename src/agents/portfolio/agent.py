@@ -36,6 +36,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.agents.llm_errors import (
     context_overflow_user_message,
+    exception_diagnostic_metadata,
     is_context_overflow_error,
 )
 from src.agents.openbb_mcp_invoke import (
@@ -348,12 +349,17 @@ def answer(
 
     tools_invoked: List[str] = []
     saw_runtime_fmp_paywall = False
+    error_meta: Dict[str, Any] = {}
     try:
         final_ai, tools_invoked, saw_runtime_fmp_paywall = _run_async(
             _arun_react_loop(llm, tools, messages)
         )
     except Exception as exc:  # noqa: BLE001 -- surface to aggregator
         _logger.exception("Portfolio agent tool loop failed")
+        error_meta = exception_diagnostic_metadata(
+            exc,
+            phase="portfolio_tool_loop",
+        )
         if is_context_overflow_error(exc):
             final_ai = AIMessage(
                 content=context_overflow_user_message("portfolio question")
@@ -378,6 +384,7 @@ def answer(
         "tool_names": tool_names,
         "tools_invoked": tools_invoked,
     }
+    metadata.update(error_meta)
     note = fmp_sources_footprint_note(
         saw_runtime_fmp_paywall_signal=saw_runtime_fmp_paywall,
     )

@@ -578,6 +578,25 @@ def _data_sources_footprint_notes(agent_payloads: List[Dict]) -> List[str]:
     return out
 
 
+def _agent_error_details(agent_payloads: List[Dict]) -> List[Dict[str, str]]:
+    """Collect non-user-facing error diagnostics from specialist metadata."""
+
+    out: List[Dict[str, str]] = []
+    for ar in agent_payloads:
+        meta = ar.get("metadata") or {}
+        if not bool(meta.get("error")):
+            continue
+        item = {
+            "agent": str(ar.get("agent", "?") or "?"),
+            "phase": str(meta.get("error_phase", "") or ""),
+            "type": str(meta.get("error_type", "Error") or "Error"),
+            "message": str(meta.get("error_message", "") or ""),
+            "traceback": str(meta.get("error_traceback", "") or ""),
+        }
+        out.append(item)
+    return out
+
+
 def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> None:
     """Show routing details for the most recent assistant turn.
 
@@ -587,8 +606,9 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
          ``metadata.tools_invoked``).
       3. Optional ``st.info`` line(s) when ``metadata.data_sources_note`` explains
          free-tier / non-FMP data (FMP paywall disclaimers).
-      4. The raw routing plan the central planner emitted.
-      5. Each specialist's individual reply, for full traceability.
+      4. Non-user-facing error details from ``metadata.error_*``.
+      5. The raw routing plan the central planner emitted.
+      6. Each specialist's individual reply, for full traceability.
     """
     agents = _agents_involved(plan_payload, agent_payloads)
     tools = _tools_called(agent_payloads)
@@ -601,6 +621,18 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
 
         for note in _data_sources_footprint_notes(agent_payloads):
             st.info(note)
+
+        for detail in _agent_error_details(agent_payloads):
+            title = (
+                f"**{detail['agent']} error:** {detail['type']}"
+                + (f" during `{detail['phase']}`" if detail["phase"] else "")
+            )
+            st.error(title)
+            if detail["message"]:
+                st.code(detail["message"], language="text")
+            if detail["traceback"]:
+                with st.expander(f"{detail['agent']} traceback", expanded=False):
+                    st.code(detail["traceback"], language="text")
 
         # RAG status — shown only when the QnA agent ran.
         for ar in agent_payloads:

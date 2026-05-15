@@ -224,24 +224,28 @@ market_research:
         - "equity,news,etf,economy"
       env: {}
     alpha_vantage:
-      enabled: true
-      command: "uvx"
+      # Disabled by default for Docker/HF stability: marketdata-mcp-server
+      # currently requires Python >=3.13 while this image runs Python 3.11.
+      enabled: false
+      command: "marketdata-mcp-server"
       args:
-        - "marketdata-mcp-server"
         - "${ALPHA_VANTAGE_API_KEY}"
       env: {}
     tavily:
-      enabled: true
-      command: "npx"
-      args:
-        - "-y"
-        - "tavily-mcp"
+      # Disabled by default for Docker/HF stability: Fincent adds lightweight
+      # native Python Tavily tools when TAVILY_API_KEY is set, so the npm MCP
+      # server is only needed for custom deployments that specifically want it.
+      enabled: false
+      command: "tavily-mcp"
+      args: []
       env:
         TAVILY_API_KEY: "${TAVILY_API_KEY}"
     fmp:
       enabled: true
-      command: "fmp-mcp"
-      args: []
+      command: "python"
+      args:
+        - "-m"
+        - "fmp.server"
       env:
         FMP_ACCESS_TOKEN: "${FMP_ACCESS_TOKEN}"
         FMP_API_KEY: "${FMP_ACCESS_TOKEN}"

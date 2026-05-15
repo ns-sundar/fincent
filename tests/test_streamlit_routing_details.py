@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 
 from src.web_app.streamlit_app import (
     _agents_involved,
+    _agent_error_details,
     _data_sources_footprint_notes,
     _tools_called,
 )
@@ -158,6 +159,32 @@ def test_data_sources_footprint_notes_dedupes_and_skips_invalid():
         {"agent": "qna", "content": "z", "metadata": {"data_sources_note": 123}},
     ]
     assert _data_sources_footprint_notes(responses) == [note]
+
+
+def test_agent_error_details_collects_diagnostics():
+    responses: List[Dict[str, Any]] = [
+        {
+            "agent": "market_research",
+            "content": "I hit an internal error.",
+            "metadata": {
+                "error": True,
+                "error_phase": "market_research_tool_loop",
+                "error_type": "RuntimeError",
+                "error_message": "upstream exploded",
+                "error_traceback": "Traceback...",
+            },
+        },
+        {"agent": "qna", "content": "ok", "metadata": {}},
+    ]
+    assert _agent_error_details(responses) == [
+        {
+            "agent": "market_research",
+            "phase": "market_research_tool_loop",
+            "type": "RuntimeError",
+            "message": "upstream exploded",
+            "traceback": "Traceback...",
+        }
+    ]
 
 
 def test_tools_called_returns_empty_for_no_responses():

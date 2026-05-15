@@ -4,9 +4,8 @@ Responsibilities:
   * Download each URL from the article catalog.
   * Detect whether it is PDF or HTML from the Content-Type header
     (with a filename extension fallback).
-  * Parse it using a LangChain loader -- ``UnstructuredPDFLoader`` for
-    PDFs (unstructured.io under the hood) and ``BSHTMLLoader`` for
-    HTML (BeautifulSoup under the hood).
+  * Parse it using a LangChain loader -- ``PyPDFLoader`` for PDFs and
+    ``BSHTMLLoader`` for HTML (BeautifulSoup under the hood).
   * Stamp the article's ``url``, ``title``, and ``tags`` onto every
     resulting ``Document.metadata`` so they flow through chunking and
     end up attached to each vector in FAISS.
@@ -170,32 +169,16 @@ def _looks_like_pdf(content_type: str, url: str) -> bool:
 def _load_pdf_bytes(pdf_bytes: bytes) -> List[Document]:
     """Parse PDF bytes into ``Document`` objects.
 
-    Tries ``UnstructuredPDFLoader`` first (the user-requested path) and
-    falls back to ``PyPDFLoader`` if unstructured fails or is missing
-    its system-level dependencies (poppler, tesseract, etc.).
+    Uses ``PyPDFLoader`` by default to keep Docker/HF deployments small and
+    avoid the heavyweight OCR/vision dependency chain pulled by unstructured.
     """
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(pdf_bytes)
         tmp_path = Path(tmp.name)
     try:
-        try:
-            # Preferred path: unstructured.io via LangChain loader.
-            from langchain_community.document_loaders import UnstructuredPDFLoader
+        from langchain_community.document_loaders import PyPDFLoader
 
-            loader = UnstructuredPDFLoader(
-                str(tmp_path),
-                mode="single",
-                strategy="fast",
-            )
-            return loader.load()
-        except Exception as exc:  # noqa: BLE001 -- fall back below
-            _logger.warning(
-                "UnstructuredPDFLoader failed (%s); falling back to PyPDFLoader",
-                exc,
-            )
-            from langchain_community.document_loaders import PyPDFLoader
-
-            return PyPDFLoader(str(tmp_path)).load()
+        return PyPDFLoader(str(tmp_path)).load()
     finally:
         try:
             tmp_path.unlink()

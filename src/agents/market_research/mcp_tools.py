@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import shutil
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import requests
 
 from src.agents.openbb_mcp_invoke import filter_openbb_mcp_tools_for_available_credentials
 from src.core.config import AppConfig, PortfolioMcpServerSpec, get_config
@@ -88,6 +91,7 @@ def _fincent_repo_root() -> Path:
 
 _PROJECT_ROOT: Path = _fincent_repo_root()
 _PORTFOLIO_OPENBB_HOME: Path = _PROJECT_ROOT / ".fincent_openbb_home"
+_TAVILY_API_URL: str = "https://api.tavily.com"
 
 
 def _ensure_openbb_home() -> Optional[str]:
@@ -100,6 +104,95 @@ def _ensure_openbb_home() -> Optional[str]:
     except Exception as exc:  # noqa: BLE001 -- fall back to a simple env
         _logger.warning("Could not prepare isolated OpenBB HOME: %s", exc)
         return str(_PORTFOLIO_OPENBB_HOME.resolve())
+
+
+def _tavily_api_key() -> str:
+    return str(os.environ.get("TAVILY_API_KEY") or "").strip()
+
+
+def _tavily_post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Call Tavily's HTTPS API without requiring the Node MCP server."""
+
+    key = _tavily_api_key()
+    if not key:
+        return {"error": "TAVILY_API_KEY is not configured."}
+    body = {"api_key": key, **payload}
+    try:
+        resp = requests.post(
+            f"{_TAVILY_API_URL}{path}",
+            json=body,
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return dict(resp.json() or {})
+    except Exception as exc:  # noqa: BLE001 -- tool calls must not crash agent loop
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def _json_tool_output(payload: Dict[str, Any], *, max_chars: int = 12_000) -> str:
+    text = json.dumps(payload, default=str)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n...[truncated]"
+
+
+def _build_native_tavily_tools() -> List[Any]:
+    """Return Python-native Tavily tools when TAVILY_API_KEY is configured."""
+
+    if not _tavily_api_key():
+        return []
+
+    try:
+        from langchain_core.tools import tool
+    except ImportError as exc:
+        _logger.warning("Tavily tools disabled; LangChain tools missing. (%s)", exc)
+        return []
+
+    @tool("tavily_search")
+    def tavily_search(query: str, max_results: int = 5) -> str:
+        """Search the current web for company, market, and investment research."""
+
+        payload = _tavily_post(
+            "/search",
+            {
+                "query": query,
+                "max_results": max(1, min(int(max_results or 5), 10)),
+                "search_depth": "advanced",
+                "include_answer": True,
+                "include_raw_content": False,
+            },
+        )
+        return _json_tool_output(payload)
+
+    @tool("tavily_extract")
+    def tavily_extract(url: str) -> str:
+        """Extract readable content from a specific URL for market research."""
+
+        payload = _tavily_post(
+            "/extract",
+            {
+                "urls": [url],
+                "extract_depth": "basic",
+            },
+        )
+        return _json_tool_output(payload)
+
+    return [tavily_search, tavily_extract]
+
+
+def _append_native_tavily_tools(tools: List[Any]) -> None:
+    """Add Tavily HTTPS tools unless MCP already supplied equivalent names."""
+
+    existing = {str(getattr(t, "name", "") or "") for t in tools}
+    native = [
+        t
+        for t in _build_native_tavily_tools()
+        if str(getattr(t, "name", "") or "") not in existing
+    ]
+    if native:
+        tools.extend(native)
+        _logger.info("Market Research: added %d native Tavily tool(s).", len(native))
 
 
 def _expand_env_placeholder(value: str, *, server_key: str) -> Optional[str]:
@@ -250,6 +343,7 @@ async def _abuild_tools_stateless(
             part = filter_openbb_mcp_tools_for_available_credentials(part)
         all_tools.extend(part)
 
+    _append_native_tavily_tools(all_tools)
     _logger.info(
         "Loaded %d Market Research MCP tool(s) from %d server(s): %s",
         len(all_tools),
@@ -269,8 +363,10 @@ async def start_market_research_mcp_sessions(cfg: Optional[AppConfig] = None) ->
 
     specs = _build_client_specs(cfg)
     if not specs:
-        _TOOLS_CACHE = []
-        _logger.info("Market Research MCP: no enabled servers.")
+        tools: List[Any] = []
+        _append_native_tavily_tools(tools)
+        _TOOLS_CACHE = tools
+        _logger.info("Market Research MCP: no enabled servers; loaded %d native tool(s).", len(tools))
         return
 
     try:
@@ -283,16 +379,22 @@ async def start_market_research_mcp_sessions(cfg: Optional[AppConfig] = None) ->
 
     stack = AsyncExitStack()
     all_tools: List[Any] = []
-    try:
-        for name, conn in specs.items():
-            if shutil.which(str(conn.get("command") or "")) is None:
-                _logger.warning(
-                    "Market Research MCP server %s skipped: command %r not found.",
-                    name,
-                    conn.get("command"),
-                )
-                continue
-            session = await stack.enter_async_context(create_session(conn))
+    loaded_servers: List[str] = []
+    failed_servers: List[str] = []
+
+    for name, conn in specs.items():
+        if shutil.which(str(conn.get("command") or "")) is None:
+            _logger.warning(
+                "Market Research MCP server %s skipped: command %r not found.",
+                name,
+                conn.get("command"),
+            )
+            failed_servers.append(name)
+            continue
+
+        server_stack = AsyncExitStack()
+        try:
+            session = await server_stack.enter_async_context(create_session(conn))
             await session.initialize()
             part = await load_mcp_tools(session, connection=conn, server_name=name)
             if name == "fmp":
@@ -303,22 +405,30 @@ async def start_market_research_mcp_sessions(cfg: Optional[AppConfig] = None) ->
                 )
             if name == "openbb":
                 part = filter_openbb_mcp_tools_for_available_credentials(part)
+            stack.push_async_exit(server_stack.pop_all())
             all_tools.extend(part)
-    except Exception as exc:  # noqa: BLE001
-        _logger.warning(
-            "Market Research MCP persistent startup failed (specs=%s): %s",
-            sorted(specs.keys()),
-            exc,
-        )
-        await stack.aclose()
-        _TOOLS_CACHE = []
-        _MCP_EXIT_STACK = None
-        return
+            loaded_servers.append(name)
+        except Exception as exc:  # noqa: BLE001 -- one server must not poison all tools
+            failed_servers.append(name)
+            _logger.warning(
+                "Market Research MCP server %s skipped after startup failure: %s",
+                name,
+                exc,
+            )
+            await server_stack.aclose()
 
+    _append_native_tavily_tools(all_tools)
     _MCP_EXIT_STACK = stack
     _TOOLS_CACHE = all_tools
     _UVICORN_LOOP = asyncio.get_running_loop()
-    _logger.info("Market Research MCP: loaded %d tool(s).", len(all_tools))
+    _logger.info(
+        "Market Research MCP: loaded %d tool(s) from %d/%d server(s): loaded=%s failed=%s",
+        len(all_tools),
+        len(loaded_servers),
+        len(specs),
+        loaded_servers,
+        failed_servers,
+    )
 
 
 async def stop_market_research_mcp_sessions() -> None:
@@ -373,8 +483,10 @@ def get_market_research_tools(cfg: Optional[AppConfig] = None) -> List[Any]:
     cfg = cfg or get_config()
     specs = _build_client_specs(cfg)
     if not specs:
-        _TOOLS_CACHE = []
-        return []
+        tools: List[Any] = []
+        _append_native_tavily_tools(tools)
+        _TOOLS_CACHE = tools
+        return list(tools)
 
     mr = cfg.market_research
     tools = asyncio.run(

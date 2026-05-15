@@ -26,11 +26,9 @@ pandas>=2.2.0
 # --- RAG (Q&A agent) ---
 # FAISS CPU-only vector store -- persisted at /data/vector_db.
 faiss-cpu>=1.8.0
-# Document parsing: BeautifulSoup for HTML, unstructured for PDF.
+# Document parsing: BeautifulSoup for HTML, PyPDF for PDF.
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
-unstructured[pdf]>=0.15.0
-# Fallback PDF parser when unstructured cannot handle a file.
 pypdf>=4.0.0
 # Token-aware recursive chunking (~1000 tokens, 200 overlap).
 tiktoken>=0.7.0

@@ -24,9 +24,9 @@ MARKET_RESEARCH_SYSTEM_PROMPT: str = dedent(
         unless Intrinio is explicitly enabled.
       * Alpha Vantage MCP tools: technical indicators such as RSI and
         MACD, plus Alpha Intelligence tools such as news sentiment.
-      * Tavily MCP tools: current web search and extraction for recent
-        company news, AI investment announcements, strategic updates,
-        and market commentary.
+      * Tavily tools: current web search and extraction for recent company
+        news, AI investment announcements, strategic updates, and market
+        commentary when ``TAVILY_API_KEY`` is configured.
       * Financial Modeling Prep MCP tools: company fundamentals,
         statements, ratios, filings, and 10-K content. Use 10-K filings
         to extract the top three business risks when doing risk analysis.

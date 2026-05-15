@@ -14,6 +14,7 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
     PYTHONPATH=/app \
     PORT=7860 \
     API_PORT=8000
@@ -22,12 +23,6 @@ WORKDIR /app
 
 # System packages:
 #   curl, ca-certificates      -- entrypoint health check + HTTPS to OpenAI
-#   nodejs, npm                -- npx-based MCP server (Tavily)
-#   poppler-utils, tesseract-ocr, libmagic1
-#                               -- unstructured.io PDF parsing (RAG ingestion)
-#   libgl1, libglib2.0-0        -- OpenCV (pulled in by unstructured[pdf]);
-#                                  without libGL.so.1 unstructured raises
-#                                  ImportError and falls back to PyPDFLoader.
 # Persistent state uses /data/checkpoints.sqlite, /data/vector_db, and
 # /data/portfolio; the entrypoint creates those paths if the Space does not
 # mount persistent storage.
@@ -35,23 +30,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
-        nodejs \
-        npm \
-        poppler-utils \
-        tesseract-ocr \
-        libmagic1 \
-        libgl1 \
-        libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first to maximise layer caching.
 COPY requirements.txt ./
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir uv
-
-# Avoid first-boot npx downloads inside the FastAPI lifespan on Spaces.
-RUN npm install -g tavily-mcp
+RUN pip install --no-cache-dir --retries 10 --timeout 120 -r requirements.txt
 
 # Application source + entrypoint
 COPY . .

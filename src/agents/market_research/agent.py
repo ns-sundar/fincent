@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.agents.llm_errors import (
     context_overflow_user_message,
+    exception_diagnostic_metadata,
     is_context_overflow_error,
 )
 from src.agents.market_research.mcp_tools import (
@@ -218,12 +219,17 @@ def answer(
 
     tools_invoked: List[str] = []
     saw_runtime_fmp_paywall = False
+    error_meta: Dict[str, Any] = {}
     try:
         final_ai, tools_invoked, saw_runtime_fmp_paywall = _run_async(
             _arun_react_loop(llm, tools, messages)
         )
     except Exception as exc:  # noqa: BLE001 -- surface as agent response
         _logger.exception("Market Research agent tool loop failed")
+        error_meta = exception_diagnostic_metadata(
+            exc,
+            phase="market_research_tool_loop",
+        )
         if is_context_overflow_error(exc):
             final_ai = AIMessage(
                 content=context_overflow_user_message("market research question")
@@ -241,6 +247,7 @@ def answer(
         "tool_names": tool_names,
         "tools_invoked": tools_invoked,
     }
+    meta.update(error_meta)
     note = fmp_sources_footprint_note(
         saw_runtime_fmp_paywall_signal=saw_runtime_fmp_paywall,
     )

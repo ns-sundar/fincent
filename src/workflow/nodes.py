@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents import market_research, portfolio, qna
 from src.agents.central import aggregate, answer_directly, plan_route
+from src.agents.llm_errors import exception_diagnostic_metadata
 from src.core.schemas import AgentName, AgentResponse, Intent
 from src.utils.logging import get_logger
 from src.workflow.state import GraphState
@@ -92,10 +93,14 @@ def _make_specialist_node(intent: Intent):
             response = AgentResponse(
                 agent=AgentName(intent.value),
                 content=(
-                    f"The {intent.value} agent failed to produce a "
-                    f"response: {exc}"
+                    f"The {intent.value} agent hit an internal error while "
+                    "working on that request. Please try a narrower request "
+                    "or ask again."
                 ),
-                metadata={"error": True},
+                metadata=exception_diagnostic_metadata(
+                    exc,
+                    phase=f"{intent.value}_node",
+                ),
             )
         return {"agent_responses": [response]}
 
