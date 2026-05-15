@@ -6,7 +6,11 @@ import json
 import os
 from pathlib import Path
 
-from src.agents.portfolio.mcp_tools import _PROJECT_ROOT, _server_config
+from src.agents.portfolio.mcp_tools import (
+    _PROJECT_ROOT,
+    _ensure_fincent_openbb_mcp_home,
+    _server_config,
+)
 from src.core.config import PortfolioMcpServerSpec
 
 
@@ -22,6 +26,23 @@ def test_openbb_default_user_settings_prefers_yfinance():
     data = json.loads(path.read_text(encoding="utf-8"))
     quote = data["defaults"]["commands"]["/equity/price/quote"]
     assert quote["provider"] == "yfinance"
+
+
+def test_ensure_openbb_home_writes_fmp_api_key_from_env(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """``.env`` uses ``FMP_ACCESS_TOKEN``; OpenBB expects ``fmp_api_key`` in user_settings."""
+    import src.agents.portfolio.mcp_tools as mcp_mod
+
+    monkeypatch.setattr(mcp_mod, "_FINCENT_OPENBB_HOME", tmp_path)
+    monkeypatch.setenv("FMP_ACCESS_TOKEN", "test-fmp-key-from-env")
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("FINANCIAL_MODELING_PREP_API_KEY", raising=False)
+    home = _ensure_fincent_openbb_mcp_home()
+    assert Path(home) == tmp_path.resolve()
+    settings_path = tmp_path / ".openbb_platform" / "user_settings.json"
+    data = json.loads(settings_path.read_text(encoding="utf-8"))
+    assert data["credentials"]["fmp_api_key"] == "test-fmp-key-from-env"
 
 
 def test_server_config_openbb_injects_fincent_home_by_default():

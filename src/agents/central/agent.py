@@ -16,6 +16,10 @@ from src.agents.central.prompts import (
     ROUTER_SYSTEM_PROMPT,
     ROUTER_USER_TEMPLATE,
 )
+from src.agents.llm_errors import (
+    context_overflow_user_message,
+    is_context_overflow_error,
+)
 from src.core.config import AppConfig, get_config
 from src.core.llm import get_default_chat_model
 from src.core.schemas import AgentName, AgentResponse, Intent, RoutingPlan
@@ -68,6 +72,7 @@ def _enabled_specialist_intents(cfg: AppConfig) -> set[Intent]:
     mapping = {
         Intent.QNA: cfg.agents.qna.enabled,
         Intent.PORTFOLIO: cfg.agents.portfolio.enabled,
+        Intent.MARKET_RESEARCH: cfg.agents.market_research.enabled,
     }
     return {intent for intent, enabled in mapping.items() if enabled}
 
@@ -277,10 +282,19 @@ def aggregate(
         query=query,
         responses_block=_format_responses_block(responses),
     )
-    response = llm.invoke(
-        [
-            SystemMessage(content=AGGREGATOR_SYSTEM_PROMPT),
-            HumanMessage(content=user_prompt),
-        ]
-    )
+    try:
+        response = llm.invoke(
+            [
+                SystemMessage(content=AGGREGATOR_SYSTEM_PROMPT),
+                HumanMessage(content=user_prompt),
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001 -- return a user-safe answer
+        _logger.exception("Central aggregation failed")
+        if is_context_overflow_error(exc):
+            return context_overflow_user_message("combined answer")
+        return (
+            "I hit an internal error while combining the specialist responses. "
+            "Please try a narrower request or ask again."
+        )
     return str(response.content).strip()

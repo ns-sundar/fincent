@@ -9,6 +9,20 @@ from typing import Optional
 _CONFIGURED: bool = False
 
 
+class _SuppressNoisyThirdPartyWarnings(logging.Filter):
+    """Drop known harmless startup warnings from optional dependencies."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if (
+            record.name.startswith("transformers")
+            and "Accessing `__path__` from `.models." in msg
+            and "this alias will be removed in future versions" in msg
+        ):
+            return False
+        return True
+
+
 def configure_logging(level: str = "INFO", log_file: Optional[str] = None) -> None:
     """Configure root logging exactly once.
 
@@ -23,12 +37,15 @@ def configure_logging(level: str = "INFO", log_file: Optional[str] = None) -> No
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
     if log_file:
         handlers.append(logging.FileHandler(log_file))
+    for handler in handlers:
+        handler.addFilter(_SuppressNoisyThirdPartyWarnings())
 
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         handlers=handlers,
     )
+    logging.getLogger("transformers").addFilter(_SuppressNoisyThirdPartyWarnings())
     _CONFIGURED = True
 
 

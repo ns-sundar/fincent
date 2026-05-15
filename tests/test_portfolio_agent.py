@@ -11,6 +11,7 @@ from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.tools import tool
 
+from src.agents.openbb_mcp_invoke import FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
 from src.agents.portfolio import answer as portfolio_answer
 from src.agents.portfolio import get_portfolio_tools, load_portfolio
 from src.agents.portfolio.loader import AccountSummary, PortfolioSnapshot
@@ -22,6 +23,13 @@ from src.core.schemas import AgentName
 
 def _fake_llm(*responses: str) -> FakeListChatModel:
     return FakeListChatModel(responses=list(responses))
+
+
+def _force_fmp_free_tier(monkeypatch) -> None:
+    monkeypatch.delenv("FMP_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("FINANCIAL_MODELING_PREP_API_KEY", raising=False)
+    monkeypatch.delenv("FINCENT_OPENBB_ALLOW_PAID_FMP_FUNDAMENTALS", raising=False)
 
 
 def _synthetic_snapshot() -> PortfolioSnapshot:
@@ -204,6 +212,15 @@ def test_merge_openbb_tool_args_adds_yfinance_for_equity_price_quote():
     assert _merge_openbb_tool_args("rag_search", {"query": "x"}) == {"query": "x"}
 
 
+def test_merge_openbb_coerces_yfinance_to_fmp_for_fundamentals():
+    from src.agents.portfolio.agent import _merge_openbb_tool_args
+
+    assert _merge_openbb_tool_args(
+        "equity_fundamental_ratios",
+        {"symbol": "AAPL", "provider": "yfinance"},
+    ) == {"symbol": "AAPL", "provider": "fmp"}
+
+
 def test_merge_openbb_respects_allow_keyed_providers_env(monkeypatch):
     from src.agents.portfolio.agent import _merge_openbb_tool_args
 
@@ -219,8 +236,9 @@ def test_merge_openbb_respects_allow_keyed_providers_env(monkeypatch):
 # ---------------------------------------------------------------------
 
 
-def test_portfolio_answer_attribution_and_metadata():
+def test_portfolio_answer_attribution_and_metadata(monkeypatch):
     """The agent must attribute to PORTFOLIO and surface snapshot rollups."""
+    _force_fmp_free_tier(monkeypatch)
     snap = _synthetic_snapshot()
     response = portfolio_answer(
         "How much cash do I have?",
@@ -234,6 +252,30 @@ def test_portfolio_answer_attribution_and_metadata():
     assert response.metadata["allocation"]["cash"] == 40.0
     assert response.metadata["transaction_count"] == 2
     assert response.metadata["tools_invoked"] == []
+    assert response.metadata["data_sources_note"] == FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
+
+
+def test_portfolio_answer_no_data_sources_note_when_paid_fmp_enabled(monkeypatch):
+    monkeypatch.setenv("FINCENT_OPENBB_ALLOW_PAID_FMP_FUNDAMENTALS", "true")
+    snap = _synthetic_snapshot()
+    response = portfolio_answer(
+        "How much cash do I have?",
+        llm=_fake_llm("You hold $40 of cash and $100 of stocks."),
+        snapshot=snap,
+    )
+    assert "data_sources_note" not in response.metadata
+
+
+def test_portfolio_answer_no_data_sources_note_when_fmp_key_present(monkeypatch):
+    monkeypatch.delenv("FINCENT_OPENBB_ALLOW_PAID_FMP_FUNDAMENTALS", raising=False)
+    monkeypatch.setenv("FMP_ACCESS_TOKEN", "starter-plan-key")
+    snap = _synthetic_snapshot()
+    response = portfolio_answer(
+        "How much cash do I have?",
+        llm=_fake_llm("You hold $40 of cash and $100 of stocks."),
+        snapshot=snap,
+    )
+    assert "data_sources_note" not in response.metadata
 
 
 def test_portfolio_context_block_exposes_full_transaction_list():
@@ -308,7 +350,7 @@ class _ScriptedToolCallingLLM(FakeListChatModel):
         return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
 
-def test_portfolio_answer_invokes_mcp_tools_and_returns_final_text():
+def test_portfolio_answer_invokes_mcp_tools_and_returns_final_text(monkeypatch):
     """A tool-calling LLM must drive the ReAct loop, then the final AIMessage wins.
 
     The fake LLM asks the agent to call ``rag_search`` once; the loop
@@ -316,6 +358,7 @@ def test_portfolio_answer_invokes_mcp_tools_and_returns_final_text():
     second invocation yields the user-visible final answer. Proves
     that the Portfolio agent correctly wires MCP-style tools.
     """
+    _force_fmp_free_tier(monkeypatch)
     call_log: List[Dict[str, Any]] = []
 
     @tool("rag_search")
@@ -341,16 +384,18 @@ def test_portfolio_answer_invokes_mcp_tools_and_returns_final_text():
     assert response.metadata["tool_count"] == 1
     assert response.metadata["tool_names"] == ["rag_search"]
     assert response.metadata["tools_invoked"] == ["rag_search"]
+    assert response.metadata["data_sources_note"] == FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
     assert call_log == [{"query": "ETF basics"}]
 
 
-def test_portfolio_answer_tool_free_path_runs_without_tools():
+def test_portfolio_answer_tool_free_path_runs_without_tools(monkeypatch):
     """Passing ``tools=[]`` must short-circuit past ``bind_tools``.
 
     Guarantees that operators with MCP disabled (or missing the
     ``langchain-mcp-adapters`` dependency) still get a working
     portfolio answer from the raw LLM output.
     """
+    _force_fmp_free_tier(monkeypatch)
     response = portfolio_answer(
         "What's my total balance?",
         llm=_fake_llm("Your total balance is $140."),
@@ -362,10 +407,12 @@ def test_portfolio_answer_tool_free_path_runs_without_tools():
     assert response.metadata["tool_count"] == 0
     assert response.metadata["tool_names"] == []
     assert response.metadata["tools_invoked"] == []
+    assert response.metadata["data_sources_note"] == FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
 
 
-def test_portfolio_answer_handles_unknown_tool_gracefully():
+def test_portfolio_answer_handles_unknown_tool_gracefully(monkeypatch):
     """Unknown tool names feed an error back instead of crashing."""
+    _force_fmp_free_tier(monkeypatch)
     llm = _ScriptedToolCallingLLM(
         responses=["Could not verify that -- I answered from the snapshot."],
         first_turn_tool="some_missing_tool",
@@ -380,6 +427,7 @@ def test_portfolio_answer_handles_unknown_tool_gracefully():
     assert response.agent == AgentName.PORTFOLIO
     assert "snapshot" in response.content.lower()
     assert response.metadata["tools_invoked"] == ["some_missing_tool"]
+    assert response.metadata["data_sources_note"] == FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
 
 
 # ---------------------------------------------------------------------
@@ -424,6 +472,7 @@ def test_portfolio_agent_uses_cached_mcp_tools_when_tools_arg_absent(monkeypatch
     """
     import src.agents.portfolio.agent as agent_mod
 
+    _force_fmp_free_tier(monkeypatch)
     monkeypatch.setattr(agent_mod, "get_portfolio_tools", lambda _cfg: [])
     response = portfolio_answer(
         "How many accounts do I have?",
@@ -433,4 +482,5 @@ def test_portfolio_agent_uses_cached_mcp_tools_when_tools_arg_absent(monkeypatch
     assert response.metadata["tool_count"] == 0
     assert response.metadata["tool_names"] == []
     assert response.metadata["tools_invoked"] == []
+    assert response.metadata["data_sources_note"] == FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
     assert "2 accounts" in response.content

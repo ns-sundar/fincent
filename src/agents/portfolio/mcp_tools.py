@@ -28,11 +28,13 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.agents.openbb_mcp_invoke import filter_openbb_mcp_tools_for_available_credentials
 from src.core.config import (
     AppConfig,
     PortfolioMcpServerSpec,
     get_config,
 )
+from src.utils.async_shutdown import is_lifespan_shutdown_noise
 from src.utils.logging import get_logger
 
 _logger = get_logger(__name__)
@@ -73,6 +75,64 @@ _DEFAULT_OPENBB_USER_SETTINGS: Path = (
 )
 
 
+def _fmp_api_key_from_process_env() -> Optional[str]:
+    """Return the FMP key for OpenBB ``fmp_api_key`` credentials.
+
+    OpenBB's loader does not treat ``FMP_ACCESS_TOKEN`` as an API key env var
+    (it does not end with ``API_KEY``), so fundamentals via ``provider=fmp``
+    fail unless ``user_settings.json`` contains ``fmp_api_key`` or the
+    operator sets ``FMP_API_KEY``. We accept the same aliases as Market
+    Research MCP and mirror the token into OpenBB settings below.
+    """
+
+    for key in (
+        "FMP_ACCESS_TOKEN",
+        "FMP_API_KEY",
+        "FINANCIAL_MODELING_PREP_API_KEY",
+    ):
+        raw = os.environ.get(key)
+        if raw is None:
+            continue
+        stripped = str(raw).strip().strip('"').strip("'")
+        if stripped:
+            return stripped
+    return None
+
+
+def _sync_openbb_user_settings_credentials(path: Path) -> None:
+    """Merge supported provider keys from the process env into ``credentials``."""
+
+    fmp_tok = _fmp_api_key_from_process_env()
+    if not fmp_tok:
+        return
+    try:
+        raw_text = path.read_text(encoding="utf-8")
+        data = json.loads(raw_text) if raw_text.strip() else {}
+    except (OSError, json.JSONDecodeError) as exc:
+        _logger.warning("Could not read OpenBB user_settings for credential sync: %s", exc)
+        return
+    if not isinstance(data, dict):
+        data = {}
+    creds = data.get("credentials")
+    if creds is None:
+        creds = {}
+    if not isinstance(creds, dict):
+        creds = {}
+    changed = False
+    if fmp_tok and creds.get("fmp_api_key") != fmp_tok:
+        creds["fmp_api_key"] = fmp_tok
+        changed = True
+    if not changed:
+        return
+    data["credentials"] = creds
+    try:
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except OSError as exc:
+        _logger.warning("Could not write OpenBB user_settings credentials: %s", exc)
+        return
+    _logger.debug("Synced OpenBB credentials into user_settings at %s", path)
+
+
 def _ensure_fincent_openbb_mcp_home() -> str:
     """Create a dedicated HOME for ``openbb-mcp`` with yfinance defaults.
 
@@ -109,6 +169,8 @@ def _ensure_fincent_openbb_mcp_home() -> str:
             "Wrote minimal OpenBB user_settings (template JSON missing): %s",
             dest,
         )
+    # Merge provider keys from .env into OpenBB credential store.
+    _sync_openbb_user_settings_credentials(dest)
     return str(_FINCENT_OPENBB_HOME.resolve())
 
 
@@ -206,6 +268,7 @@ async def _abuild_tools_stateless(specs: Dict[str, Dict[str, Any]]) -> List[Any]
         )
         return []
 
+    tools = filter_openbb_mcp_tools_for_available_credentials(tools)
     _logger.info(
         "Loaded %d MCP tool(s) (stateless) from %d server(s): %s",
         len(tools),
@@ -253,6 +316,8 @@ async def start_portfolio_mcp_sessions(cfg: Optional[AppConfig] = None) -> None:
             part = await load_mcp_tools(
                 session, connection=conn, server_name=name
             )
+            if name == "openbb":
+                part = filter_openbb_mcp_tools_for_available_credentials(part)
             all_tools.extend(part)
     except Exception as exc:  # noqa: BLE001
         _logger.warning(
@@ -280,18 +345,31 @@ def get_uvicorn_loop() -> Optional[asyncio.AbstractEventLoop]:
 
 
 async def stop_portfolio_mcp_sessions() -> None:
-    """Close MCP stdio sessions and subprocesses (FastAPI lifespan shutdown)."""
+    """Close MCP stdio sessions and subprocesses (FastAPI lifespan shutdown).
+
+    Uvicorn cancels the lifespan task during shutdown; MCP/anyio cleanup calls
+    can raise ``asyncio.CancelledError`` (subclass of ``BaseException``, not
+    ``Exception``) or cancel-scope bookkeeping errors. We tear down best-effort
+    and never propagate, so app exit stays quiet.
+    """
     global _MCP_EXIT_STACK, _TOOLS_CACHE, _UVICORN_LOOP
 
-    if _MCP_EXIT_STACK is not None:
-        try:
-            await _MCP_EXIT_STACK.aclose()
-        except Exception as exc:  # noqa: BLE001
-            _logger.warning("Portfolio MCP shutdown error: %s", exc)
-        finally:
-            _MCP_EXIT_STACK = None
+    stack = _MCP_EXIT_STACK
+    _MCP_EXIT_STACK = None
     _TOOLS_CACHE = None
     _UVICORN_LOOP = None
+    if stack is None:
+        return
+    try:
+        await stack.aclose()
+    except BaseException as exc:  # noqa: BLE001
+        if is_lifespan_shutdown_noise(exc):
+            _logger.debug(
+                "Portfolio MCP shutdown: teardown noise during app exit (%s).",
+                exc,
+            )
+        else:
+            _logger.warning("Portfolio MCP shutdown error: %s", exc)
 
 
 async def _restart_portfolio_mcp(cfg: AppConfig) -> None:

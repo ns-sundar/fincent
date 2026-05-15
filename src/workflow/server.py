@@ -41,6 +41,14 @@ from markdown_it import MarkdownIt
 from openai import OpenAIError
 from pydantic import BaseModel, Field
 
+from src.agents.llm_errors import (
+    context_overflow_user_message,
+    is_context_overflow_error,
+)
+from src.agents.market_research.mcp_tools import (
+    start_market_research_mcp_sessions,
+    stop_market_research_mcp_sessions,
+)
 from src.agents.portfolio.mcp_tools import (
     start_portfolio_mcp_sessions,
     stop_portfolio_mcp_sessions,
@@ -49,6 +57,7 @@ from src.agents.portfolio.loader import load_portfolio
 from src.agents.portfolio.seed import seed_portfolio_if_needed
 from src.core.llm import get_current_model, set_current_model
 from src.core.config import AppConfig, get_config
+from src.utils.async_shutdown import is_lifespan_shutdown_noise
 from src.core.moderation import REJECTION_PREFIX, flagged_categories, moderate_query
 from src.core.schemas import QueryRequest, QueryResponse
 from src.rag import status as rag_status_mod
@@ -260,6 +269,13 @@ def _build_lifespan(cfg: AppConfig):
         except Exception:  # noqa: BLE001 -- never block RAG / serving
             _logger.exception("Portfolio MCP startup failed; continuing without tools")
 
+        try:
+            await start_market_research_mcp_sessions(cfg)
+        except Exception:  # noqa: BLE001 -- never block RAG / serving
+            _logger.exception(
+                "Market Research MCP startup failed; continuing without tools"
+            )
+
         _logger.info("RAG lifespan: starting ingestion (enabled=%s)", cfg.rag.enabled)
         try:
             # ingest_if_needed is synchronous + potentially long-running
@@ -284,8 +300,18 @@ def _build_lifespan(cfg: AppConfig):
         yield
         try:
             await stop_portfolio_mcp_sessions()
-        except Exception:  # noqa: BLE001
-            _logger.exception("Portfolio MCP shutdown failed")
+        except BaseException as exc:  # noqa: BLE001 -- CancelledError not Exception
+            if is_lifespan_shutdown_noise(exc):
+                _logger.debug("Portfolio MCP lifespan shutdown: %s", exc)
+            else:
+                _logger.exception("Portfolio MCP shutdown failed")
+        try:
+            await stop_market_research_mcp_sessions()
+        except BaseException as exc:  # noqa: BLE001
+            if is_lifespan_shutdown_noise(exc):
+                _logger.debug("Market Research MCP lifespan shutdown: %s", exc)
+            else:
+                _logger.exception("Market Research MCP shutdown failed")
 
     return _lifespan
 
@@ -448,7 +474,12 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             return run_query(request, graph=graph)
         except Exception as exc:  # noqa: BLE001 -- surface as 500
             _logger.exception("Query failed")
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            detail = (
+                context_overflow_user_message("question")
+                if is_context_overflow_error(exc)
+                else "I hit an internal error while answering that question. Please try again."
+            )
+            raise HTTPException(status_code=500, detail=detail) from exc
 
     @app.get("/history/{thread_id}", response_model=HistoryResponse)
     def history(thread_id: str) -> HistoryResponse:

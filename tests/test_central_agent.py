@@ -51,6 +51,21 @@ def test_plan_route_specialist_qna():
     assert plan.intents == [Intent.QNA]
 
 
+def test_plan_route_specialist_market_research():
+    """Market research intent should be preserved and dispatched."""
+    payload = json.dumps(
+        {
+            "handled_by_central": False,
+            "intents": ["market_research"],
+            "rationale": "Non-personal investment research question.",
+        }
+    )
+    plan = plan_route("Is Nvidia a good investment?", llm=_fake_llm(payload))
+
+    assert plan.handled_by_central is False
+    assert plan.intents == [Intent.MARKET_RESEARCH]
+
+
 def test_plan_route_personal_finance_routes_to_portfolio_only():
     """Portfolio-tagged questions must route ONLY to the Portfolio agent.
 
@@ -172,6 +187,17 @@ def test_plan_route_honors_intent_hint():
     )
     assert plan.handled_by_central is False
     assert plan.intents == [Intent.PORTFOLIO]
+
+
+def test_plan_route_honors_market_research_intent_hint():
+    """The Market Research tab should be able to pin its specialist."""
+    plan = plan_route(
+        "Compare Tesla and Ford as investments",
+        llm=_fake_llm(),
+        intent_hint=Intent.MARKET_RESEARCH,
+    )
+    assert plan.handled_by_central is False
+    assert plan.intents == [Intent.MARKET_RESEARCH]
 
 
 def test_plan_route_ignores_hint_for_disabled_specialist(monkeypatch):

@@ -13,9 +13,12 @@ pinned: false
 ## Overview
 
 Fincent is a personal financial assistant based on a multi-agent AI framework. It helps users ask general finance questions, learn about stocks,
-bonds, ETFs, taxes, market mechanics, and portfolio theory, and analyze
+bonds, ETFs, taxes, market mechanics, and portfolio theory, analyze
 their own accounts, holdings, transactions, allocation, concentration,
-exposure, and portfolio risk. It presents two tabs in its UI, one for general financial Q&A, and one meant for analyzing your portfolio that you upload. You can start with a default sample portfolio for convenience. The UI also adds an **Under the Hood** section to each response, showing
+exposure, and portfolio risk, and research public companies, securities,
+investment risks, and AI market themes. It presents three tabs in its UI:
+general financial Q&A, uploaded portfolio analysis, and Market Research.
+You can start with a default sample portfolio for convenience. The UI also adds an **Under the Hood** section to each response, showing
 developers and curious users which agents and tools were invoked.
 
 Fincent combines several knowledge sources and safety layers:
@@ -28,8 +31,15 @@ Fincent combines several knowledge sources and safety layers:
 - **OpenBB APIs** for real-time financial and market knowledge, with
   yFinance configured as the default backend for key equity quote and price
   tools.
+- **Alpha Vantage** for technical indicators such as RSI/MACD and market
+  sentiment via Alpha Intelligence.
+- **Tavily** for current web and news search around companies, sectors, and
+  AI investment themes.
+- **Financial Modeling Prep (FMP)** for company fundamentals, filings, and
+  10-K risk analysis.
 - **FAISS-backed curated knowledge base** for grounded general finance Q&A.
-- **FastMCP Server** for exposing tools such as OpenBB using MCP.
+- **FastMCP Server** for exposing tools such as OpenBB, Alpha Vantage,
+  Tavily, FMP, and Fincent RAG using MCP.
 - **OpenAI Moderation API** as an input guardrail on the `/query` endpoint.
 - **Markdown validation** as an output guardrail for assistant responses.
 - **DeepEval** for end-to-end LLM evaluation against intent-based golden
@@ -47,6 +57,9 @@ Prerequisites:
 
 - Python 3.11+
 - `OPENAI_API_KEY`
+- Optional API keys for the Market Research agent:
+  `TAVILY_API_KEY`, `ALPHA_VANTAGE_API_KEY`, and `FMP_ACCESS_TOKEN` (or
+  `FMP_API_KEY` as an alias)
 - A writable `/data` directory, or overrides for the checkpoint, vector DB,
   and portfolio data paths
 - Optional system packages for richer PDF ingestion:
@@ -61,7 +74,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Fill OPENAI_API_KEY in .env
+# Fill OPENAI_API_KEY and other API keys in .env
 
 ./run_local.sh
 ```
@@ -107,7 +120,10 @@ Fincent is configured for HuggingFace Spaces with the Docker SDK.
 1. Create a new Space.
 2. Select **Docker** as the SDK.
 3. Add `OPENAI_API_KEY` as a Space secret.
-4. Push this repository or connect it to GitHub.
+4. For Market Research, also add `TAVILY_API_KEY`,
+   `ALPHA_VANTAGE_API_KEY`, and `FMP_ACCESS_TOKEN` (or `FMP_API_KEY`) as
+   Space secrets.
+5. Push this repository or connect it to GitHub.
 
 The container exposes Streamlit on `$PORT` (default `7860`) and runs
 FastAPI internally on `API_PORT` (default `8000`). The Docker entrypoint
@@ -149,8 +165,9 @@ create `/data`; the platform provides it.
                               |          |
                               v          v
                        +------+--+   +---+----------------+
-                       | Central |   | Q&A and/or          |
-                       | answer  |   | Portfolio agents    |
+                       | Central |   | Q&A / Portfolio /   |
+                       | answer  |   | Market Research     |
+                       |         |   | agents              |
                        +------+--+   +---+----------------+
                               |          |
                               +-----+----+
@@ -178,9 +195,12 @@ The planner can conditionally route to multiple specialist agents. LangGraph
 uses `Send` to fan out when the route contains more than one specialist, and
 the central aggregator combines the specialist outputs.
 
-Routing is shared by both UI tabs. The Portfolio tab is not hard-pinned to
-the Portfolio agent; generic financial questions still route to Q&A, and
-personal portfolio questions asked in the Q&A tab still route to Portfolio.
+Routing is shared by the Q&A and Portfolio tabs. The Portfolio tab is not
+hard-pinned to the Portfolio agent; generic financial questions still route
+to Q&A, and personal portfolio questions asked in the Q&A tab still route to
+Portfolio. The Market Research tab pins `intent_hint="market_research"` so
+company, security, filing, and investment-theme questions go directly to the
+Market Research agent.
 
 Query classes:
 
@@ -192,6 +212,8 @@ Query classes:
 | Out of scope | "What's the weather today?" | Central refusal/redirect |
 | Generic finance | "What is an ETF?" | Q&A agent |
 | Personal portfolio | "Am I over-concentrated in AAPL?" | Portfolio agent |
+| Market research | "Is Nvidia a good investment?" | Market Research agent |
+| Market/security risk | "Compare the risks of bond X vs ETF Y" | Market Research agent |
 
 For deeper implementation detail, see the
 [technical design](TECHNICAL_DESIGN.md), the source under `src/workflow/`
@@ -238,6 +260,7 @@ Golden datasets are organized by intent under `eval/eval.*.json`:
 - `eval.out-of-scope.json`
 - `eval.qna.json`
 - `eval.portfolio.json`
+- `eval.market_research.json`
 
 Each row contains the user input, expected output, optional retrieval
 context, expected intent, whether the central agent should handle it
@@ -252,11 +275,12 @@ Run the e2e evals:
 python -m pytest eval/test_e2e_intents.py
 ```
 
-The pytest runner loads all golden cases, starts Portfolio FastMCP servers
-once for the test session, compiles the LangGraph once, and then runs each
-case through the full workflow with a fresh `session_id`. Before invoking
-DeepEval, it asserts deterministic routing expectations: central-handled
-flag, primary intent, expected agents, and absence of agent errors.
+The pytest runner loads all golden cases, starts Portfolio and Market
+Research FastMCP servers once for the test session, compiles the LangGraph
+once, and then runs each case through the full workflow with a fresh
+`session_id`. Before invoking DeepEval, it asserts deterministic routing
+expectations: central-handled flag, primary intent, expected agents, and
+absence of agent errors.
 
 DeepEval metrics include:
 
@@ -307,12 +331,12 @@ utilities, and portfolio data handling.
 
 The central agent is the planner, direct responder, and aggregator. It
 classifies requests into intents such as `app_identity`, `app_features`,
-`chit_chat`, `out_of_scope`, `qna`, and `portfolio`.
+`chit_chat`, `out_of_scope`, `qna`, `portfolio`, and `market_research`.
 
 For central-handled intents, it answers directly using app metadata from
-`config.yaml`. For specialist intents, it routes to Q&A, Portfolio, or both
-when the routing plan calls for fan-out, then aggregates the specialist
-responses.
+`config.yaml`. For specialist intents, it routes to Q&A, Portfolio, Market
+Research, or a fan-out combination when the routing plan calls for it, then
+aggregates the specialist responses.
 
 ### Q&A Agent
 
@@ -360,6 +384,45 @@ the process. If OpenBB, the MCP adapter, or the RAG sidecar is unavailable,
 the Portfolio agent degrades to an LLM response grounded in the portfolio
 snapshot so the app can still start.
 
+### Market Research Agent
+
+The Market Research agent handles non-personal investment research about
+public companies, securities, sectors, business risks, financial statements,
+and investment themes such as AI. Example questions include "Is Nvidia a
+good investment?", "Compare Procter & Gamble with Unilever", "What are the
+risks of investing in Tesla?", and "What is the best AI investment today?"
+
+The agent runs a ReAct tool-calling loop and can use MCP tools for:
+
+- **OpenBB**: general financial data, quotes, historical prices, ETF data,
+  company news, and economic context when a more specialized tool does not
+  fit.
+- **Alpha Vantage**: technical indicators such as RSI and MACD, plus Alpha
+  Intelligence sentiment and market news signals.
+- **Tavily**: current web/news search for recent company developments,
+  AI investment announcements, competitive context, and market commentary.
+- **Financial Modeling Prep (FMP)**: company fundamentals, statements,
+  ratios, filings, and 10-K risk analysis. The Market Research prompt uses
+  FMP filings to summarize the top three company risks when available.
+  With an FMP Starter (or higher) key configured, Fincent keeps FMP MCP tools
+  enabled and exposes OpenBB tools that route to paid FMP fundamentals,
+  estimates, and supported historical data. To force free-tier behavior, set
+  `FINCENT_OPENBB_ALLOW_PAID_FMP_FUNDAMENTALS=false`; to hide a noisy direct
+  FMP MCP tool family, add substrings to
+  `market_research.fmp_exclude_tool_name_substrings` in `config.yaml`.
+
+Market Research MCP sessions are started during FastAPI lifespan and reused
+for the process. API keys are read from environment variables rather than
+stored in `config.yaml`. **`FMP_ACCESS_TOKEN` (and aliases) is copied
+into the isolated OpenBB MCP `user_settings.json` as `fmp_api_key`**, because
+OpenBB fundamental routes use provider `fmp` and do not read `FMP_ACCESS_TOKEN`
+from the environment by default. Intrinio is paid-only and is disabled by
+default; the OpenBB tool **`equity_fundamental_reported_financials`** is omitted
+unless `FINCENT_OPENBB_ALLOW_INTRINIO=true` and an Intrinio key are both set.
+If one of the optional MCP servers is unavailable
+or its key is missing, that server is skipped and the agent continues with
+the tools that did load.
+
 ---
 
 ## Repository Layout
@@ -369,6 +432,7 @@ fincent/
   src/
     agents/
       central/      # Planner, direct answers, aggregator
+      market_research/ # Market/company research with OpenBB/Alpha/Tavily/FMP tools
       qna/          # Generic financial Q&A with FAISS RAG
       portfolio/    # Personal portfolio agent with OpenBB/RAG tools
     core/           # Config, LLM factory, shared schemas
@@ -391,7 +455,10 @@ fincent/
 ## Configuration
 
 Defaults live in `config.yaml`. Any value can be overridden with the
-`FINCENT__SECTION__KEY` environment variable convention:
+`FINCENT__SECTION__KEY` environment variable convention. When the primary
+chat model hits an OpenAI **rate limit** (`RateLimitError`), Fincent
+retries with **`llm.rate_limit_fallback_model`** (default **`gpt-5.4`** in
+`config.yaml`). Clear `FINCENT__LLM__RATE_LIMIT_FALLBACK_MODEL` to disable.
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -406,6 +473,20 @@ export FINCENT__RAG__USE_MMR=true
 
 export FINCENT__PORTFOLIO__TOOLS__OPENBB__ENABLED=true
 export FINCENT__PORTFOLIO__TOOLS__RAG__ENABLED=true
+
+export TAVILY_API_KEY=...
+export ALPHA_VANTAGE_API_KEY=...
+export FMP_ACCESS_TOKEN=...
+# Or: export FMP_API_KEY=...  (same token; accepted as an alias)
+# Optional: force free-tier behavior even when an FMP key is configured.
+# export FINCENT_OPENBB_ALLOW_PAID_FMP_FUNDAMENTALS=false
+# Optional paid Intrinio only: expose Intrinio-only OpenBB tools.
+# export FINCENT_OPENBB_ALLOW_INTRINIO=true
+# export INTRINIO_API_KEY=...
+export FINCENT__MARKET_RESEARCH__TOOLS__OPENBB__ENABLED=true
+export FINCENT__MARKET_RESEARCH__TOOLS__ALPHA_VANTAGE__ENABLED=true
+export FINCENT__MARKET_RESEARCH__TOOLS__TAVILY__ENABLED=true
+export FINCENT__MARKET_RESEARCH__TOOLS__FMP__ENABLED=true
 ```
 
 A template lives in `.env.example`.

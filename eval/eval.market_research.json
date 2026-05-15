@@ -1,0 +1,62 @@
+[
+  {
+    "input": "Is Nvidia a good investment?",
+    "expected_output": "A good answer should analyze Nvidia's recent financial statements, return metrics, balance-sheet strength, EBITDA, free cash flow, AI-related investments and demand, valuation risks, technical indicators, sentiment, and top company risks without giving personalized buy or sell advice.",
+    "retrieval_context": [
+      "Company investment research should review multiple years of balance sheet, income statement, cash flow, free cash flow, profitability, liquidity, leverage, filings, technical indicators, sentiment, and current business context."
+    ],
+    "additional_metadata": {
+      "intent": "market_research",
+      "source": "market_data_and_filings",
+      "handled_by_central": false,
+      "expected_agents": [
+        "market_research"
+      ]
+    }
+  },
+  {
+    "input": "Compare companies ANC and DEF as investments",
+    "expected_output": "A good answer should apply the same investment framework to both companies: profitability and return metrics, stability, leverage, cash generation, EBITDA, free cash flow, valuation or market context, AI strategy if relevant, technical indicators, sentiment, and key filing risks.",
+    "retrieval_context": [
+      "Company comparisons should use a consistent side-by-side framework so differences in returns, balance-sheet stability, operating trends, free cash flow, valuation, and risks are easy to compare."
+    ],
+    "additional_metadata": {
+      "intent": "market_research",
+      "source": "market_data_and_filings",
+      "handled_by_central": false,
+      "expected_agents": [
+        "market_research"
+      ]
+    }
+  },
+  {
+    "input": "Compare the risks of bond X vs ETF Y",
+    "expected_output": "A good answer should compare risk measures such as credit/default risk, duration and interest-rate sensitivity, volatility, drawdown, liquidity, concentration, inflation risk, structure or issuer risk, and tax considerations when available.",
+    "retrieval_context": [
+      "Bond and ETF risk comparisons should distinguish credit risk, interest-rate risk, market volatility, drawdowns, liquidity, diversification, issuer or structure risk, inflation sensitivity, and tax treatment."
+    ],
+    "additional_metadata": {
+      "intent": "market_research",
+      "source": "market_data_and_filings",
+      "handled_by_central": false,
+      "expected_agents": [
+        "market_research"
+      ]
+    }
+  },
+  {
+    "input": "What is the best AI investment today?",
+    "expected_output": "A good answer should avoid promising a single guaranteed best investment and instead compare current AI investment candidates using market data, fundamentals, AI revenue or adoption evidence, valuation, sentiment, technical indicators, and key risks.",
+    "retrieval_context": [
+      "AI investment research should use current market context, company fundamentals, evidence that AI investments are paying off, valuation, sentiment, technical indicators, and explicit discussion of uncertainty and risk."
+    ],
+    "additional_metadata": {
+      "intent": "market_research",
+      "source": "market_data_and_filings",
+      "handled_by_central": false,
+      "expected_agents": [
+        "market_research"
+      ]
+    }
+  }
+]

@@ -40,6 +40,10 @@ class LLMConfig(BaseModel):
     temperature: float = 0.1
     max_tokens: int = 1024
     request_timeout: int = 60
+    # If the primary ``model`` raises an OpenAI rate limit, retry the request
+    # with this model (LangChain ``with_fallbacks``). Disable with null or
+    # ``FINCENT__LLM__RATE_LIMIT_FALLBACK_MODEL=`` (empty).
+    rate_limit_fallback_model: Optional[str] = "gpt-5.4"
 
 
 class ServerConfig(BaseModel):
@@ -77,6 +81,7 @@ class AgentsConfig(BaseModel):
     central: AgentToggle = AgentToggle(enabled=True, max_fanout=3)
     qna: AgentToggle = AgentToggle(enabled=True)
     portfolio: AgentToggle = AgentToggle(enabled=True)
+    market_research: AgentToggle = AgentToggle(enabled=True)
 
 
 class LoggingConfig(BaseModel):
@@ -209,6 +214,31 @@ class PortfolioConfig(BaseModel):
     tools: PortfolioToolsConfig = PortfolioToolsConfig()
 
 
+class MarketResearchToolsConfig(BaseModel):
+    """Container for Market Research MCP tool server specs."""
+
+    # OpenBB Platform MCP server -- general financial data fallback.
+    openbb: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+    # Alpha Vantage MCP server -- technical indicators and sentiment.
+    alpha_vantage: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+    # Tavily MCP server -- current web/news search.
+    tavily: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+    # Financial Modeling Prep MCP server -- filings and company fundamentals.
+    fmp: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+
+
+class MarketResearchConfig(BaseModel):
+    """Settings for the Market Research agent."""
+
+    tools: MarketResearchToolsConfig = MarketResearchToolsConfig()
+    # FMP MCP tool names containing any of these substrings (case-insensitive)
+    # are dropped from the FMP MCP tool list. The default keeps all tools so
+    # configured Starter-plan keys can use paid FMP endpoints.
+    fmp_exclude_tool_name_substrings: List[str] = Field(
+        default_factory=list,
+    )
+
+
 class AppConfig(BaseModel):
     """Top-level configuration object."""
 
@@ -220,6 +250,7 @@ class AppConfig(BaseModel):
     checkpointer: CheckpointerConfig = CheckpointerConfig()
     rag: RagConfig = RagConfig()
     portfolio: PortfolioConfig = PortfolioConfig()
+    market_research: MarketResearchConfig = MarketResearchConfig()
     logging: LoggingConfig = LoggingConfig()
 
 
@@ -228,6 +259,29 @@ class AppConfig(BaseModel):
 # ---------------------------------------------------------------------
 
 _ENV_PREFIX: str = "FINCENT__"
+_DOTENV_LOADED: bool = False
+
+
+def _maybe_load_dotenv() -> None:
+    """Load repo-root ``.env`` into the process environment once.
+
+    This makes keys like ``FMP_ACCESS_TOKEN`` available when operators use
+    ``python -m uvicorn ...`` without ``run_local.sh``, and complements
+    ``run_local.sh`` which also sources ``.env``. Values already present in
+    ``os.environ`` are not overwritten (``override=False``).
+    """
+
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return
+    _DOTENV_LOADED = True
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    env_path = _default_config_path().parent.resolve() / ".env"
+    if env_path.is_file():
+        load_dotenv(env_path, override=False)
 
 
 def _default_config_path() -> Path:
@@ -285,6 +339,7 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
     Returns:
         A validated `AppConfig` instance.
     """
+    _maybe_load_dotenv()
     path = Path(config_path) if config_path else _default_config_path()
     raw: Dict[str, Any] = {}
     if path.is_file():
@@ -306,3 +361,10 @@ def get_config() -> AppConfig:
 def reset_config_cache() -> None:
     """Clear the cached config (useful for tests)."""
     get_config.cache_clear()
+
+
+def reset_dotenv_loaded_flag() -> None:
+    """Reset the one-shot dotenv guard (tests only)."""
+
+    global _DOTENV_LOADED
+    _DOTENV_LOADED = False

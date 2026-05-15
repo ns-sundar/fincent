@@ -20,6 +20,7 @@ def test_load_default_config(monkeypatch):
     assert cfg.app.name == "Fincent"
     assert cfg.llm.provider == "openai"
     assert cfg.llm.model == "gpt-5.4-mini"
+    assert cfg.llm.rate_limit_fallback_model == "gpt-5.4"
     assert cfg.agents.qna.enabled is True
     assert cfg.agents.portfolio.enabled is True
     assert cfg.checkpointer.path == "/data/checkpoints.sqlite"

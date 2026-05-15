@@ -12,7 +12,7 @@ The conversation is identified by a ``session_id`` query parameter
 (``?session_id=<id>``). If none is present, the UI falls back to
 ``DEFAULT_SESSION_ID``.
 
-The UI is organised as two tabs:
+The UI is organised as three tabs:
 
 * **QnA**       -- routes questions through the central planner.
                    App identity/features, chit-chat, and out-of-scope
@@ -27,10 +27,13 @@ The UI is organised as two tabs:
                    deep-dives but will still correctly fall back to
                    the Q&A agent if the user asks a purely generic
                    financial question here.
+* **Market Research** -- pinned to the Market Research agent for
+                   company, security, filing, risk, and investment
+                   theme analysis.
 
 Each tab uses its own LangGraph thread (``<session>-qna`` /
-``<session>-portfolio``) so the two transcripts are independent and
-both survive reloads.
+``<session>-portfolio`` / ``<session>-market-research``) so the three
+transcripts are independent and survive reloads.
 """
 
 from __future__ import annotations
@@ -72,10 +75,11 @@ from src.web_app.portfolio_view import render_portfolio_panel
 DEFAULT_SESSION_ID: str = "default-session"
 
 
-# Per-tab thread-id suffixes so the QnA and Portfolio transcripts stay
-# independent even though they share a base ``?session_id=``.
+# Per-tab thread-id suffixes so transcripts stay independent even though
+# they share a base ``?session_id=``.
 _QNA_SUFFIX: str = "qna"
 _PORTFOLIO_SUFFIX: str = "portfolio"
+_MARKET_RESEARCH_SUFFIX: str = "market-research"
 
 # Available chat models offered in the sidebar selector.
 _AVAILABLE_MODELS: List[str] = ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4", "gpt-4o-mini"]
@@ -91,13 +95,20 @@ _QNA_SUGGESTIONS: List[str] = [
     "What is Adjusted Gross Income (AGI) in tax forms?",
 ]
 
+_MARKET_RESEARCH_SUGGESTIONS: List[str] = [
+    "Is Nvidia a good investment?",
+    "Compare Procter and Gamble with Unilever",
+    "What are the risks of investing in Tesla?",
+    "What is the best AI investment today?",
+]
+
 
 # CSS overrides applied once per page load. Streamlit's ``st.tabs``
 # renders labels inside a BaseWeb tab list; bumping the ``p`` font
 # size and colour inside ``data-testid="stMarkdownContainer"`` is the
 # documented, version-stable way to restyle the labels without
 # reaching into internal class names. Royal blue (#4169E1) keeps the
-# two tab headers visually prominent at the top of the page.
+# tab headers visually prominent at the top of the page.
 _TAB_LABEL_CSS: str = """
 <style>
 /* ── Tab bar: flush bottom border that active tab "sits on" ──────────── */
@@ -277,6 +288,18 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
                 st.session_state[_history_state_key(_PORTFOLIO_SUFFIX)] = []
                 st.rerun()
 
+        if st.button("Clear Market Research conversation", key="reset_market_research_btn"):
+            try:
+                reset_thread(
+                    api_base_url,
+                    _thread_id_for(session_id, _MARKET_RESEARCH_SUFFIX),
+                )
+            except FincentApiError as exc:
+                st.error(f"Reset failed: {exc}")
+            else:
+                st.session_state[_history_state_key(_MARKET_RESEARCH_SUFFIX)] = []
+                st.rerun()
+
         st.markdown("---")
         _render_portfolio_upload(cfg, api_base_url)
 
@@ -288,6 +311,9 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         port_tid = html.escape(
             _thread_id_for(session_id, _PORTFOLIO_SUFFIX), quote=True
         )
+        market_tid = html.escape(
+            _thread_id_for(session_id, _MARKET_RESEARCH_SUFFIX), quote=True
+        )
         st.markdown(
             f"<p style='font-size:0.75rem;color:#6b7280;line-height:1.5;margin:0;'>"
             f"<span style='color:#374151;font-weight:600;'>Backend</span> · "
@@ -298,11 +324,13 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
             f"<span style='color:#374151;font-weight:600;'>QnA thread</span> · "
             f"<span style='word-break:break-all;'>{qna_tid}</span><br/>"
             f"<span style='color:#374151;font-weight:600;'>Portfolio thread</span> · "
-            f"<span style='word-break:break-all;'>{port_tid}</span></p>",
+            f"<span style='word-break:break-all;'>{port_tid}</span><br/>"
+            f"<span style='color:#374151;font-weight:600;'>Market Research thread</span> · "
+            f"<span style='word-break:break-all;'>{market_tid}</span></p>",
             unsafe_allow_html=True,
         )
         st.caption(
-            "Tip: open `?session_id=my-id` in the URL for a separate conversation pair."
+            "Tip: open `?session_id=my-id` in the URL for a separate conversation set."
         )
 
 
@@ -532,15 +560,35 @@ def _tools_called(agent_payloads: List[Dict]) -> List[str]:
     return tools
 
 
+def _data_sources_footprint_notes(agent_payloads: List[Dict]) -> List[str]:
+    """Collect unique FMP / free-data disclaimers from specialist metadata."""
+
+    seen: set[str] = set()
+    out: List[str] = []
+    for ar in agent_payloads:
+        meta = ar.get("metadata") or {}
+        raw = meta.get("data_sources_note")
+        if not isinstance(raw, str):
+            continue
+        text = raw.strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
 def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> None:
     """Show routing details for the most recent assistant turn.
 
     The expander is ordered for quick diagnosis:
       1. Which agent(s) actually produced the user-visible answer.
-      2. Which tools those agents called (currently the Portfolio
-         agent's MCP tool list).
-      3. The raw routing plan the central planner emitted.
-      4. Each specialist's individual reply, for full traceability.
+      2. Which tools those agents called (specialists record
+         ``metadata.tools_invoked``).
+      3. Optional ``st.info`` line(s) when ``metadata.data_sources_note`` explains
+         free-tier / non-FMP data (FMP paywall disclaimers).
+      4. The raw routing plan the central planner emitted.
+      5. Each specialist's individual reply, for full traceability.
     """
     agents = _agents_involved(plan_payload, agent_payloads)
     tools = _tools_called(agent_payloads)
@@ -550,6 +598,9 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
         tools_line = ", ".join(tools) if tools else "(none)"
         st.markdown(f"**Agents involved:** {agents_line}")
         st.markdown(f"**Tools called:** {tools_line}")
+
+        for note in _data_sources_footprint_notes(agent_payloads):
+            st.info(note)
 
         # RAG status — shown only when the QnA agent ran.
         for ar in agent_payloads:
@@ -661,6 +712,7 @@ def _render_chat_tab(
     intent_hint: Optional[str],
     intro: Optional[str] = None,
     suggestions: Optional[List[str]] = None,
+    suggestions_caption: str = "Ask any general finance question. Try any of these to get started.",
 ) -> None:
     """Render a chat tab: history on top, ``st.chat_input`` pinned at bottom.
 
@@ -680,7 +732,7 @@ def _render_chat_tab(
     preset: Optional[str] = st.session_state.pop(preset_key, None)
 
     if suggestions and preset is None:
-        st.caption("Ask any general finance question. Try any of these to get started.")
+        st.caption(suggestions_caption)
         for i in range(0, len(suggestions), 2):
             pair = suggestions[i : i + 2]
             cols = st.columns(len(pair))
@@ -758,6 +810,27 @@ def _render_portfolio_tab(api_base_url: str, session_id: str) -> None:
     )
 
 
+def _render_market_research_tab(api_base_url: str, session_id: str) -> None:
+    """Market Research tab: pinned to the Market Research specialist."""
+
+    _render_chat_tab(
+        api_base_url=api_base_url,
+        session_id=session_id,
+        suffix=_MARKET_RESEARCH_SUFFIX,
+        placeholder="Ask for company, security, or market research...",
+        input_key="market_research_chat_input",
+        intent_hint="market_research",
+        intro=(
+            "Ask for company research, investment comparisons, bond or ETF "
+            "risk analysis, AI investment themes, or 10-K risk summaries."
+        ),
+        suggestions=_MARKET_RESEARCH_SUGGESTIONS,
+        suggestions_caption=(
+            "Ask a market research question. Try any of these to get started."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------
@@ -784,11 +857,15 @@ def main() -> None:
     if subtitle:
         st.caption(subtitle)
 
-    qna_tab, portfolio_tab = st.tabs(["QnA", "Portfolio"])
+    qna_tab, portfolio_tab, market_research_tab = st.tabs(
+        ["QnA", "Portfolio", "Market Research"]
+    )
     with qna_tab:
         _render_qna_tab(api_base_url, session_id)
     with portfolio_tab:
         _render_portfolio_tab(api_base_url, session_id)
+    with market_research_tab:
+        _render_market_research_tab(api_base_url, session_id)
 
 
 if __name__ == "__main__":

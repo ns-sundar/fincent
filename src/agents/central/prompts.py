@@ -66,6 +66,19 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
                           context via tools, so always route personal
                           questions to PORTFOLIO rather than fanning
                           out to both.
+      - market_research
+                       -> NON-personal investment research about public
+                          companies, securities, sectors, bonds, ETFs,
+                          financial statements, valuations, technical
+                          indicators, market sentiment, company filings,
+                          business risks, or current investment themes
+                          such as AI. Use this for questions like "Is
+                          Nvidia a good investment?", "Compare Company A
+                          and Company B as investments", "What are the
+                          risks of investing in Tesla?", "Compare risks
+                          of bond X vs ETF Y", and "What is the best AI
+                          investment today?" These questions do not ask
+                          about the user's own accounts or holdings.
       - unknown        -> Use only when nothing else fits.
 
     Routing rules:
@@ -74,8 +87,9 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
          "handled_by_central": true and emit the intent name.
       2. If the intent is qna, set "handled_by_central": false and emit ONLY "qna".
       3. If the intent is portfolio, set "handled_by_central": false and emit ONLY "portfolio".
-      4. Never invent intents that are not in the list above.
-      5. Be concise in "rationale" (one short sentence).
+      4. If the intent is market_research, set "handled_by_central": false and emit ONLY "market_research".
+      5. Never invent intents that are not in the list above.
+      6. Be concise in "rationale" (one short sentence).
 
     Respond with a single JSON object matching this schema:
 
@@ -101,6 +115,11 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
           "Am I over-concentrated in AAPL?",
           "What's AAPL worth in my account today?",
           "Explain dividend taxation for my holdings"
+      - market_research: "Is Nvidia a good investment?",
+          "Compare Procter and Gamble with Unilever as investments",
+          "What are the risks of investing in Tesla?",
+          "Compare the risks of bond X vs ETF Y",
+          "What is the best AI investment today?"
     """
 )
 

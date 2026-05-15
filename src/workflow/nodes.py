@@ -10,7 +10,7 @@ from typing import Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.agents import portfolio, qna
+from src.agents import market_research, portfolio, qna
 from src.agents.central import aggregate, answer_directly, plan_route
 from src.core.schemas import AgentName, AgentResponse, Intent
 from src.utils.logging import get_logger
@@ -27,6 +27,7 @@ _logger = get_logger(__name__)
 SPECIALIST_DISPATCH: Dict[Intent, callable] = {
     Intent.QNA: qna.answer,
     Intent.PORTFOLIO: portfolio.answer,
+    Intent.MARKET_RESEARCH: market_research.answer,
 }
 
 
@@ -34,6 +35,7 @@ SPECIALIST_DISPATCH: Dict[Intent, callable] = {
 SPECIALIST_NODE_FOR: Dict[Intent, str] = {
     Intent.QNA: "qna_node",
     Intent.PORTFOLIO: "portfolio_node",
+    Intent.MARKET_RESEARCH: "market_research_node",
 }
 
 
@@ -103,6 +105,7 @@ def _make_specialist_node(intent: Intent):
 
 qna_node = _make_specialist_node(Intent.QNA)
 portfolio_node = _make_specialist_node(Intent.PORTFOLIO)
+market_research_node = _make_specialist_node(Intent.MARKET_RESEARCH)
 
 
 def aggregator_node(state: GraphState) -> GraphState:

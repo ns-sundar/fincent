@@ -34,6 +34,15 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from src.agents.llm_errors import (
+    context_overflow_user_message,
+    is_context_overflow_error,
+)
+from src.agents.openbb_mcp_invoke import (
+    ainvoke_openbb_tool,
+    fmp_sources_footprint_note,
+    openbb_tool_text_suggests_fmp_paywall_fallback,
+)
 from src.agents.portfolio.loader import (
     AccountSummary,
     PortfolioSnapshot,
@@ -120,6 +129,20 @@ _OPENBB_FREE_PROVIDER_DEFAULTS: Dict[str, Dict[str, str]] = {
 }
 
 
+def _openbb_provider_token(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, list) and raw:
+        raw = raw[0]
+    if not isinstance(raw, str):
+        return str(raw).strip().lower()
+    return raw.strip().lower()
+
+
+def _openbb_equity_fundamental_rejects_yfinance(tool_name: str) -> bool:
+    return str(tool_name).startswith("equity_fundamental_")
+
+
 def _merge_openbb_tool_args(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """Pin OpenBB to yfinance for key equity tools (no API key).
 
@@ -128,17 +151,27 @@ def _merge_openbb_tool_args(tool_name: str, args: Dict[str, Any]) -> Dict[str, A
     ``user_settings`` and triggers ``fmp_api_key`` errors. Fincent forces
     yfinance for these tool names unless the operator opts out via
     ``FINCENT_OPENBB_ALLOW_KEYED_PROVIDERS=true``.
+
+    Fundamental ``equity_fundamental_*`` routes reject yfinance; coerce to
+    ``fmp`` so the API does not return 422. Paid providers such as Intrinio
+    are skipped later unless explicitly enabled.
     """
+    merged = dict(args or {})
+
+    if _openbb_equity_fundamental_rejects_yfinance(tool_name):
+        token = _openbb_provider_token(merged.get("provider"))
+        if token in {"yfinance", "yf", "yahoo", "yahoofinance"}:
+            merged["provider"] = "fmp"
+
     extra = _OPENBB_FREE_PROVIDER_DEFAULTS.get(tool_name)
     if not extra:
-        return args
+        return merged
     if os.environ.get("FINCENT_OPENBB_ALLOW_KEYED_PROVIDERS", "").lower() in (
         "1",
         "true",
         "yes",
     ):
-        return args
-    merged = dict(args)
+        return merged
     merged["provider"] = extra["provider"]
     return merged
 
@@ -147,17 +180,13 @@ async def _ainvoke_tool(tool: Any, args: Dict[str, Any]) -> str:
     """Invoke a LangChain tool and normalise the result to a string."""
     name = str(getattr(tool, "name", "") or "")
     call_args = _merge_openbb_tool_args(name, dict(args or {}))
-    try:
-        result = await tool.ainvoke(call_args)
-    except Exception as exc:  # noqa: BLE001 -- feed errors back to the LLM
-        _logger.warning("Tool %s failed: %s", name or "?", exc)
-        return f"[tool error] {type(exc).__name__}: {exc}"
-    if isinstance(result, str):
-        return result
-    try:
-        return json.dumps(result, default=str)
-    except (TypeError, ValueError):
-        return str(result)
+    return await ainvoke_openbb_tool(
+        tool,
+        call_args,
+        tool_name=name,
+        logger=_logger,
+        log_context="Portfolio",
+    )
 
 
 async def _arun_react_loop(
@@ -166,7 +195,7 @@ async def _arun_react_loop(
     messages: List[Any],
     *,
     max_iterations: int = _MAX_TOOL_ITERATIONS,
-) -> Tuple[AIMessage, List[str]]:
+) -> Tuple[AIMessage, List[str], bool]:
     """Run a minimal ReAct tool-calling loop.
 
     Binds the tools to the chat model, asks for a reply, executes any
@@ -190,6 +219,7 @@ async def _arun_react_loop(
     working = list(messages)
     final: Optional[AIMessage] = None
     tools_invoked: List[str] = []
+    saw_runtime_fmp_paywall: bool = False
     for iteration in range(max_iterations):
         response = await bound.ainvoke(working)
         if not isinstance(response, AIMessage):
@@ -212,6 +242,8 @@ async def _arun_react_loop(
                 content = f"[tool error] unknown tool '{name}'"
             else:
                 content = await _ainvoke_tool(tool, args)
+            if openbb_tool_text_suggests_fmp_paywall_fallback(content):
+                saw_runtime_fmp_paywall = True
             working.append(
                 ToolMessage(content=content, tool_call_id=call_id, name=name)
             )
@@ -226,7 +258,7 @@ async def _arun_react_loop(
                 "for that question. Please try rephrasing it."
             )
         )
-    return final, tools_invoked
+    return final, tools_invoked, saw_runtime_fmp_paywall
 
 
 def _run_async(coro) -> Any:
@@ -315,18 +347,24 @@ def answer(
     ]
 
     tools_invoked: List[str] = []
+    saw_runtime_fmp_paywall = False
     try:
-        final_ai, tools_invoked = _run_async(
+        final_ai, tools_invoked, saw_runtime_fmp_paywall = _run_async(
             _arun_react_loop(llm, tools, messages)
         )
     except Exception as exc:  # noqa: BLE001 -- surface to aggregator
         _logger.exception("Portfolio agent tool loop failed")
-        final_ai = AIMessage(
-            content=(
-                "I hit an internal error while working through that "
-                f"portfolio question: {type(exc).__name__}: {exc}."
+        if is_context_overflow_error(exc):
+            final_ai = AIMessage(
+                content=context_overflow_user_message("portfolio question")
             )
-        )
+        else:
+            final_ai = AIMessage(
+                content=(
+                    "I hit an internal error while working through that "
+                    "portfolio question. Please try a narrower request or ask again."
+                )
+            )
 
     body = str(final_ai.content).strip()
 
@@ -340,6 +378,11 @@ def answer(
         "tool_names": tool_names,
         "tools_invoked": tools_invoked,
     }
+    note = fmp_sources_footprint_note(
+        saw_runtime_fmp_paywall_signal=saw_runtime_fmp_paywall,
+    )
+    if note:
+        metadata["data_sources_note"] = note
     return AgentResponse(
         agent=AgentName.PORTFOLIO,
         content=body,

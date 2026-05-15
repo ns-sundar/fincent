@@ -41,8 +41,8 @@ class GraphState(TypedDict, total=False):
                          planner can clear stale checkpoint data.
         final_answer:    Final user-facing answer for the current turn.
         session_id:      Opaque thread identifier (informational).
-        intent_hint:     Optional caller-pinned intent (e.g. the
-                         Portfolio tab in the Streamlit UI). When set
+        intent_hint:     Optional caller-pinned intent (e.g. a
+                         specialist Streamlit tab). When set
                          the planner skips LLM classification and
                          dispatches directly to the matching
                          specialist.

@@ -23,6 +23,12 @@ app:
       description: "OpenBB platform for financial data and analysis."
     - name: "fincent-rag"
       description: "A curated knowledge base about stocks, bonds, cash, ETFs, mutual funds, general portfolio theory, investment risk, market trading, brokers, and general IRS/tax topics."
+    - name: "alpha-vantage"
+      description: "Alpha Vantage market data, technical indicators, and market sentiment."
+    - name: "tavily"
+      description: "Tavily web search for current market, company, and AI investment research."
+    - name: "financial-modeling-prep"
+      description: "Financial Modeling Prep company fundamentals, filings, and 10-K risk analysis."
 
 llm:
   provider: "openai"
@@ -33,6 +39,8 @@ llm:
   max_tokens: 1024
   # Per-call timeout in seconds.
   request_timeout: 60
+  # When the primary model returns an OpenAI rate limit, retry with this model.
+  rate_limit_fallback_model: "gpt-5.4"
 
 server:
   host: "0.0.0.0"
@@ -79,6 +87,14 @@ agents:
       (stocks / bonds / cash), and recent transaction activity. Data is
       loaded from the static JSON files under
       ``portfolio.data_path`` until live account connectivity is wired.
+  market_research:
+    enabled: true
+    description: >
+      Answers non-personal market research questions about companies,
+      securities, sectors, investment risks, and financial statements.
+      Uses market data, technical indicators, web search, sentiment,
+      and company filings to explain investment tradeoffs in simple
+      educational language.
 
 rag:
   # Retrieval-Augmented Generation for the Q&A agent.
@@ -186,6 +202,51 @@ portfolio:
         - "src.rag.mcp_server"
       env:
         FINCENT__RAG__MCP_SERVER__TRANSPORT: "stdio"
+
+market_research:
+  # FMP tools whose names contain these substrings are not offered to the
+  # agent. The default keeps all FMP tools so a configured FMP Starter (or
+  # higher) key can use paid endpoints such as five-year historical data.
+  # Add substrings here if a specific FMP tool is noisy for your plan.
+  fmp_exclude_tool_name_substrings: []
+  # MCP tool servers the Market Research agent can invoke for
+  # non-personal company, security, market, and filing analysis.
+  # Secrets are intentionally represented as ${ENV_VAR} placeholders
+  # and resolved from the FastAPI process environment by the loader.
+  tools:
+    openbb:
+      enabled: true
+      command: "openbb-mcp"
+      args:
+        - "--transport"
+        - "stdio"
+        - "--default-categories"
+        - "equity,news,etf,economy"
+      env: {}
+    alpha_vantage:
+      enabled: true
+      command: "uvx"
+      args:
+        - "marketdata-mcp-server"
+        - "${ALPHA_VANTAGE_API_KEY}"
+      env: {}
+    tavily:
+      enabled: true
+      command: "npx"
+      args:
+        - "-y"
+        - "tavily-mcp"
+      env:
+        TAVILY_API_KEY: "${TAVILY_API_KEY}"
+    fmp:
+      enabled: true
+      command: "npx"
+      args:
+        - "-y"
+        - "fmp-mcp"
+      env:
+        FMP_ACCESS_TOKEN: "${FMP_ACCESS_TOKEN}"
+        DYNAMIC_TOOL_DISCOVERY: "true"
 
 checkpointer:
   # LangGraph persists the per-thread state (messages, plan, etc.) so

@@ -23,6 +23,10 @@ from deepeval.test_case import LLMTestCase  # noqa: E402
 from eval.datasets import EvalCase, case_ids, load_eval_cases  # noqa: E402
 from eval.metrics import metrics_for_case  # noqa: E402
 from eval.text_normalize import normalize_answer_for_eval  # noqa: E402
+from src.agents.market_research.mcp_tools import (  # noqa: E402
+    start_market_research_mcp_sessions,
+    stop_market_research_mcp_sessions,
+)
 from src.agents.portfolio.mcp_tools import (  # noqa: E402
     start_portfolio_mcp_sessions,
     stop_portfolio_mcp_sessions,
@@ -90,9 +94,11 @@ def portfolio_mcp_sessions():
     background_loop = _BackgroundEventLoop()
     background_loop.start()
     background_loop.run(start_portfolio_mcp_sessions())
+    background_loop.run(start_market_research_mcp_sessions())
     try:
         yield
     finally:
+        background_loop.run(stop_market_research_mcp_sessions())
         background_loop.run(stop_portfolio_mcp_sessions())
         background_loop.stop()
 

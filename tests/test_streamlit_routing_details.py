@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from src.web_app.streamlit_app import _agents_involved, _tools_called
+from src.web_app.streamlit_app import (
+    _agents_involved,
+    _data_sources_footprint_notes,
+    _tools_called,
+)
 
 
 # ---------------------------------------------------------------------
@@ -30,6 +34,22 @@ def test_agents_involved_single_specialist_returns_that_specialist_only():
         {"agent": "portfolio", "content": "Your stock allocation is 70%.", "metadata": {}},
     ]
     assert _agents_involved(plan, responses) == ["portfolio"]
+
+
+def test_agents_involved_market_research_specialist():
+    """Market Research responses should display as the contributing agent."""
+    plan: Dict[str, Any] = {
+        "handled_by_central": False,
+        "intents": ["market_research"],
+    }
+    responses: List[Dict[str, Any]] = [
+        {
+            "agent": "market_research",
+            "content": "Nvidia has strong AI demand.",
+            "metadata": {},
+        },
+    ]
+    assert _agents_involved(plan, responses) == ["market_research"]
 
 
 def test_agents_involved_central_direct_when_handled_by_central():
@@ -79,6 +99,17 @@ def test_tools_called_aggregates_tools_invoked_across_agents():
     assert _tools_called(responses) == ["rag_search", "equity_price_quote"]
 
 
+def test_tools_called_includes_market_research_tool_metadata():
+    responses = [
+        {
+            "agent": "market_research",
+            "content": "Sentiment is positive.",
+            "metadata": {"tools_invoked": ["NEWS_SENTIMENT", "tavily_search"]},
+        },
+    ]
+    assert _tools_called(responses) == ["NEWS_SENTIMENT", "tavily_search"]
+
+
 def test_tools_called_empty_when_no_metadata():
     """Agents that omit ``tools_invoked`` contribute nothing."""
     responses = [
@@ -107,6 +138,26 @@ def test_tools_called_ignores_legacy_tool_names_only_payloads():
         },
     ]
     assert _tools_called(responses) == []
+
+
+def test_data_sources_footprint_notes_dedupes_and_skips_invalid():
+    from src.agents.openbb_mcp_invoke import FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
+
+    note = FMP_FOOTPRINT_FREE_DATA_DISCLAIMER
+    responses: List[Dict[str, Any]] = [
+        {
+            "agent": "portfolio",
+            "content": "x",
+            "metadata": {"data_sources_note": note},
+        },
+        {
+            "agent": "market_research",
+            "content": "y",
+            "metadata": {"data_sources_note": note},
+        },
+        {"agent": "qna", "content": "z", "metadata": {"data_sources_note": 123}},
+    ]
+    assert _data_sources_footprint_notes(responses) == [note]
 
 
 def test_tools_called_returns_empty_for_no_responses():

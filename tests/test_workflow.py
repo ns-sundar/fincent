@@ -37,10 +37,14 @@ def patch_llm(monkeypatch):
         fake = _ScriptedFakeLLM(responses)
         # Patch every import site so all agents pick up the fake.
         from src.agents.central import agent as central_module
+        from src.agents.market_research import agent as market_research_module
         from src.agents.portfolio import agent as portfolio_module
         from src.agents.qna import agent as qna_module
 
         monkeypatch.setattr(central_module, "get_default_chat_model", lambda: fake)
+        monkeypatch.setattr(
+            market_research_module, "get_default_chat_model", lambda: fake
+        )
         monkeypatch.setattr(qna_module, "get_default_chat_model", lambda: fake)
         monkeypatch.setattr(portfolio_module, "get_default_chat_model", lambda: fake)
         return fake
@@ -111,3 +115,22 @@ def test_workflow_routes_portfolio_via_intent_hint(patch_llm):
     assert Intent.PORTFOLIO in out.plan.intents
     assert out.answer == portfolio_text
     assert any(r.agent == AgentName.PORTFOLIO for r in out.agent_responses)
+
+
+def test_workflow_routes_market_research_via_intent_hint(patch_llm):
+    """The Market Research tab should bypass routing and run its specialist."""
+    from src.workflow.graph import run_query
+
+    market_text = "Nvidia has strong AI demand, but valuation risk matters."
+    patch_llm(market_text)
+
+    out = run_query(
+        QueryRequest(
+            query="Is Nvidia a good investment?",
+            intent_hint=Intent.MARKET_RESEARCH,
+        )
+    )
+    assert out.plan.handled_by_central is False
+    assert Intent.MARKET_RESEARCH in out.plan.intents
+    assert out.answer == market_text
+    assert any(r.agent == AgentName.MARKET_RESEARCH for r in out.agent_responses)

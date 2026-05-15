@@ -10,10 +10,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  if [[ -f .env ]]; then
-    set -a; source .env; set +a
-  fi
+# Always load `.env` when present so optional keys (e.g. FMP, Tavily) are
+# exported even if OPENAI_API_KEY was set earlier in the shell profile.
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
 fi
 
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then

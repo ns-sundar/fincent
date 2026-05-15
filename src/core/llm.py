@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Union
 
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
+from openai import RateLimitError
 
 from src.core.config import LLMConfig, get_config
 
@@ -66,7 +68,7 @@ def build_chat_model(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     request_timeout: Optional[int] = None,
-) -> BaseChatModel:
+) -> Union[BaseChatModel, Runnable]:
     """Construct a chat model using config defaults plus optional overrides.
 
     Args:
@@ -76,7 +78,8 @@ def build_chat_model(
         request_timeout: Override the per-call timeout in seconds.
 
     Returns:
-        A LangChain ``BaseChatModel`` ready for ``.invoke``/``.ainvoke``.
+        A LangChain chat runnable: ``ChatOpenAI``, or ``ChatOpenAI.with_fallbacks``
+        when a rate-limit fallback model is configured.
     """
     cfg: LLMConfig = get_config().llm
 
@@ -85,17 +88,40 @@ def build_chat_model(
             f"Unsupported LLM provider '{cfg.provider}'. Only 'openai' is wired."
         )
 
-    return ChatOpenAI(
-        api_key=_require_openai_key(),
-        model=model or cfg.model,
-        temperature=cfg.temperature if temperature is None else temperature,
-        max_tokens=max_tokens or cfg.max_tokens,
-        timeout=request_timeout or cfg.request_timeout,
+    primary_name = model or cfg.model
+    temperature_eff = cfg.temperature if temperature is None else temperature
+    max_tokens_eff = max_tokens or cfg.max_tokens
+    timeout_eff = request_timeout or cfg.request_timeout
+    api_key = _require_openai_key()
+
+    primary = ChatOpenAI(
+        api_key=api_key,
+        model=primary_name,
+        temperature=temperature_eff,
+        max_tokens=max_tokens_eff,
+        timeout=timeout_eff,
     )
+
+    fb_raw = cfg.rate_limit_fallback_model
+    fb_name = str(fb_raw).strip() if fb_raw is not None else ""
+    if fb_name and fb_name != primary_name:
+        fallback = ChatOpenAI(
+            api_key=api_key,
+            model=fb_name,
+            temperature=temperature_eff,
+            max_tokens=max_tokens_eff,
+            timeout=timeout_eff,
+        )
+        return primary.with_fallbacks(
+            [fallback],
+            exceptions_to_handle=(RateLimitError,),
+        )
+
+    return primary
 
 
 @lru_cache(maxsize=8)
-def get_default_chat_model() -> BaseChatModel:
+def get_default_chat_model() -> Union[BaseChatModel, Runnable]:
     """Cached convenience accessor for the default chat model.
 
     Uses the runtime override set by :func:`set_current_model` when
