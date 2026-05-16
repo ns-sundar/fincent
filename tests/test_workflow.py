@@ -37,6 +37,7 @@ def patch_llm(monkeypatch):
         fake = _ScriptedFakeLLM(responses)
         # Patch every import site so all agents pick up the fake.
         from src.agents.central import agent as central_module
+        from src.agents.goal_planning import agent as goal_planning_module
         from src.agents.market_research import agent as market_research_module
         from src.agents.portfolio import agent as portfolio_module
         from src.agents.qna import agent as qna_module
@@ -47,6 +48,15 @@ def patch_llm(monkeypatch):
         )
         monkeypatch.setattr(qna_module, "get_default_chat_model", lambda: fake)
         monkeypatch.setattr(portfolio_module, "get_default_chat_model", lambda: fake)
+        monkeypatch.setattr(
+            goal_planning_module, "get_default_chat_model", lambda: fake
+        )
+        monkeypatch.setattr(
+            market_research_module, "get_market_research_tools", lambda _cfg=None: []
+        )
+        monkeypatch.setattr(
+            goal_planning_module, "get_goal_planning_tools", lambda _cfg=None: []
+        )
         return fake
 
     return _apply
@@ -134,3 +144,22 @@ def test_workflow_routes_market_research_via_intent_hint(patch_llm):
     assert Intent.MARKET_RESEARCH in out.plan.intents
     assert out.answer == market_text
     assert any(r.agent == AgentName.MARKET_RESEARCH for r in out.agent_responses)
+
+
+def test_workflow_routes_goal_planning_via_intent_hint(patch_llm):
+    """The Goal Planning tab should bypass routing and run its specialist."""
+    from src.workflow.graph import run_query
+
+    goal_text = "Your retirement plan needs a higher savings rate."
+    patch_llm(goal_text)
+
+    out = run_query(
+        QueryRequest(
+            query="Can I retire at 60?",
+            intent_hint=Intent.GOAL_PLANNING,
+        )
+    )
+    assert out.plan.handled_by_central is False
+    assert Intent.GOAL_PLANNING in out.plan.intents
+    assert out.answer == goal_text
+    assert any(r.agent == AgentName.GOAL_PLANNING for r in out.agent_responses)

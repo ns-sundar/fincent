@@ -22,6 +22,8 @@ requests>=2.32.0
 plotly>=5.24.0
 # Pandas gives us DataFrames for the portfolio graphics in Streamlit.
 pandas>=2.2.0
+# NumPy powers vectorized Goal Planning Monte Carlo simulations.
+numpy>=1.26.0
 
 # --- RAG (Q&A agent) ---
 # FAISS CPU-only vector store -- persisted at /data/vector_db.

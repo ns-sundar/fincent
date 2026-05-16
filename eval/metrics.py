@@ -44,10 +44,14 @@ The answer should:
   economics, or portfolio-related questions is the desired behavior.
 - For app_features questions about which tools Fincent uses, when the expected output names
   several integrations (for example OpenBB, fincent-rag, Alpha Vantage, Tavily, Financial
-  Modeling Prep), treat coverage as correct if the answer names each with a substantially
-  accurate description; minor reordering, bullets vs prose, or a short caveat about API keys
-  is fine. Do not penalize answers for including those integrations when they appear in the
-  expected output.
+  Modeling Prep, fincent-goal-planning), treat coverage as correct if the answer names each
+  with a substantially accurate description; minor reordering, bullets vs prose, or a short
+  caveat about API keys is fine. Do not penalize answers for including those integrations
+  when they appear in the expected output.
+- For goal_planning, accept scenario-based answers that state assumptions, use the user's
+  portfolio context, include deterministic savings or TVM reasoning when enough inputs are
+  present, discuss probability of success or uncertainty when simulations are available,
+  flag time-horizon/allocation mismatches, and avoid guarantees.
 - Avoid unsupported claims or personal facts not present in the expected output or context.
 """
 
@@ -72,14 +76,18 @@ A good answer should:
   investment risk, market trading, brokers, and general tax topics.
 - For app_features, accept and expect answers that name specific configured
   tool integrations (such as OpenBB, fincent-rag, Alpha Vantage, Tavily,
-  Financial Modeling Prep when applicable), data-access behaviors, version,
-  authorship, or other capabilities drawn from the app metadata.
+  Financial Modeling Prep, fincent-goal-planning when applicable), data-access
+  behaviors, version, authorship, or other capabilities drawn from the app metadata.
   Tool integrations are first-class app features; do not penalize an answer
   merely because it names backend or infrastructure tools. Penalize only
   long unrelated feature dumps or capabilities that were not asked about.
 - For portfolio, allow account identifiers, ticker symbols, transaction ids,
   small tables, and examples from the user's data when they help answer the
   question.
+- For goal_planning, allow tables, assumptions, scenario ranges, Monte Carlo
+  probability language, and funding-waterfall guidance when they help connect
+  the user's portfolio to retirement, college, home purchase, vacation, or
+  stress-test goals.
 - For out_of_scope, treat a polite refusal plus a brief redirect to finance,
   economics, or portfolio topics as relevant and helpful.
 

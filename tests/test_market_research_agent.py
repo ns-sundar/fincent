@@ -232,6 +232,22 @@ def test_market_research_bound_tool_cap_env_cannot_exceed_provider_limit(monkeyp
     assert dropped == 2
 
 
+def test_market_research_prompt_requires_company_comparison_framework():
+    from src.agents.market_research.prompts import MARKET_RESEARCH_SYSTEM_PROMPT
+
+    required_terms = [
+        "return metrics",
+        "EBITDA",
+        "free cash flow",
+        "technical indicators",
+        "sentiment",
+        "key filing",
+        "Do not trail off",
+    ]
+    for term in required_terms:
+        assert term in MARKET_RESEARCH_SYSTEM_PROMPT
+
+
 def test_merge_openbb_coerces_yfinance_to_fmp_for_equity_fundamental_ratios():
     from src.agents.market_research.agent import _merge_openbb_tool_args
 

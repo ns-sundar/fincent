@@ -82,6 +82,7 @@ class AgentsConfig(BaseModel):
     qna: AgentToggle = AgentToggle(enabled=True)
     portfolio: AgentToggle = AgentToggle(enabled=True)
     market_research: AgentToggle = AgentToggle(enabled=True)
+    goal_planning: AgentToggle = AgentToggle(enabled=True)
 
 
 class LoggingConfig(BaseModel):
@@ -239,6 +240,27 @@ class MarketResearchConfig(BaseModel):
     )
 
 
+class GoalPlanningToolsConfig(BaseModel):
+    """Container for Goal Planning MCP tool server specs."""
+
+    # Internal Fincent planning server -- deterministic math, Monte Carlo,
+    # and portfolio summary context.
+    internal: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+    # OpenBB economy/FRED-capable endpoints for inflation and Treasury yields.
+    openbb: PortfolioMcpServerSpec = PortfolioMcpServerSpec()
+
+
+class GoalPlanningConfig(BaseModel):
+    """Settings for the Goal Planning agent."""
+
+    tools: GoalPlanningToolsConfig = GoalPlanningToolsConfig()
+    monte_carlo_simulations: int = 5000
+    max_monte_carlo_simulations: int = 20000
+    max_projection_years: int = 60
+    default_inflation_rate: float = 0.025
+    default_risk_free_rate: float = 0.04
+
+
 class AppConfig(BaseModel):
     """Top-level configuration object."""
 
@@ -251,6 +273,7 @@ class AppConfig(BaseModel):
     rag: RagConfig = RagConfig()
     portfolio: PortfolioConfig = PortfolioConfig()
     market_research: MarketResearchConfig = MarketResearchConfig()
+    goal_planning: GoalPlanningConfig = GoalPlanningConfig()
     logging: LoggingConfig = LoggingConfig()
 
 

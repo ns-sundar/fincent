@@ -73,6 +73,7 @@ def _enabled_specialist_intents(cfg: AppConfig) -> set[Intent]:
         Intent.QNA: cfg.agents.qna.enabled,
         Intent.PORTFOLIO: cfg.agents.portfolio.enabled,
         Intent.MARKET_RESEARCH: cfg.agents.market_research.enabled,
+        Intent.GOAL_PLANNING: cfg.agents.goal_planning.enabled,
     }
     return {intent for intent, enabled in mapping.items() if enabled}
 

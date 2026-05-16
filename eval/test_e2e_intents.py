@@ -27,6 +27,10 @@ from src.agents.market_research.mcp_tools import (  # noqa: E402
     start_market_research_mcp_sessions,
     stop_market_research_mcp_sessions,
 )
+from src.agents.goal_planning.mcp_tools import (  # noqa: E402
+    start_goal_planning_mcp_sessions,
+    stop_goal_planning_mcp_sessions,
+)
 from src.agents.portfolio.mcp_tools import (  # noqa: E402
     start_portfolio_mcp_sessions,
     stop_portfolio_mcp_sessions,
@@ -95,9 +99,11 @@ def portfolio_mcp_sessions():
     background_loop.start()
     background_loop.run(start_portfolio_mcp_sessions())
     background_loop.run(start_market_research_mcp_sessions())
+    background_loop.run(start_goal_planning_mcp_sessions())
     try:
         yield
     finally:
+        background_loop.run(stop_goal_planning_mcp_sessions())
         background_loop.run(stop_market_research_mcp_sessions())
         background_loop.run(stop_portfolio_mcp_sessions())
         background_loop.stop()

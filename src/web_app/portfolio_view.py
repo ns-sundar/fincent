@@ -279,7 +279,7 @@ def render_portfolio_panel(snapshot: PortfolioSnapshot) -> None:
         else:
             st.plotly_chart(
                 _allocation_pie_figure(allocation_df),
-                use_container_width=True,
+                width="stretch",
                 config={"displayModeBar": False},
             )
 

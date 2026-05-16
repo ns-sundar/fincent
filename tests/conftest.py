@@ -40,6 +40,8 @@ os.environ.setdefault(
 )
 os.environ.setdefault("FINCENT__MARKET_RESEARCH__TOOLS__TAVILY__ENABLED", "false")
 os.environ.setdefault("FINCENT__MARKET_RESEARCH__TOOLS__FMP__ENABLED", "false")
+os.environ.setdefault("FINCENT__GOAL_PLANNING__TOOLS__INTERNAL__ENABLED", "false")
+os.environ.setdefault("FINCENT__GOAL_PLANNING__TOOLS__OPENBB__ENABLED", "false")
 
 # Keep portfolio seeding off the real ``/data`` host mount during
 # tests. The seed copier runs once per process into this dir and then
@@ -54,6 +56,7 @@ os.environ.setdefault("FINCENT__PORTFOLIO__DATA_PATH", str(_PORTFOLIO_TEST_DIR))
 def _reset_config_cache():
     """Reset cached config between tests so env overrides take effect."""
     from src.agents.market_research.mcp_tools import reset_market_research_tools_cache
+    from src.agents.goal_planning.mcp_tools import reset_goal_planning_tools_cache
     from src.agents.portfolio.mcp_tools import reset_portfolio_tools_cache
     from src.core.config import reset_config_cache
     from src.rag.retriever import reset_default_retriever
@@ -63,10 +66,12 @@ def _reset_config_cache():
     reset_default_retriever()
     reset_status()
     reset_market_research_tools_cache()
+    reset_goal_planning_tools_cache()
     reset_portfolio_tools_cache()
     yield
     reset_config_cache()
     reset_default_retriever()
     reset_status()
     reset_market_research_tools_cache()
+    reset_goal_planning_tools_cache()
     reset_portfolio_tools_cache()

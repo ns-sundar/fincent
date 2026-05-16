@@ -66,6 +66,21 @@ def test_plan_route_specialist_market_research():
     assert plan.intents == [Intent.MARKET_RESEARCH]
 
 
+def test_plan_route_specialist_goal_planning():
+    """Goal-planning intent should be preserved and dispatched."""
+    payload = json.dumps(
+        {
+            "handled_by_central": False,
+            "intents": ["goal_planning"],
+            "rationale": "Personal goal projection question.",
+        }
+    )
+    plan = plan_route("Can I retire at 60?", llm=_fake_llm(payload))
+
+    assert plan.handled_by_central is False
+    assert plan.intents == [Intent.GOAL_PLANNING]
+
+
 def test_plan_route_personal_finance_routes_to_portfolio_only():
     """Portfolio-tagged questions must route ONLY to the Portfolio agent.
 
@@ -198,6 +213,17 @@ def test_plan_route_honors_market_research_intent_hint():
     )
     assert plan.handled_by_central is False
     assert plan.intents == [Intent.MARKET_RESEARCH]
+
+
+def test_plan_route_honors_goal_planning_intent_hint():
+    """The Goal Planning tab should be able to pin its specialist."""
+    plan = plan_route(
+        "Can I afford a vacation next summer?",
+        llm=_fake_llm(),
+        intent_hint=Intent.GOAL_PLANNING,
+    )
+    assert plan.handled_by_central is False
+    assert plan.intents == [Intent.GOAL_PLANNING]
 
 
 def test_plan_route_ignores_hint_for_disabled_specialist(monkeypatch):

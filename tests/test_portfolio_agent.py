@@ -290,6 +290,15 @@ def test_portfolio_context_block_exposes_full_transaction_list():
     assert "AAA" in block and "CASH" in block
 
 
+def test_portfolio_prompt_forbids_extra_transaction_facts():
+    """Narrow transaction evals should not include adjacent rows."""
+
+    from src.agents.portfolio.prompts import PORTFOLIO_SYSTEM_PROMPT
+
+    assert "Narrow transaction lookups" in PORTFOLIO_SYSTEM_PROMPT
+    assert "Do not add nearby years, related transactions" in PORTFOLIO_SYSTEM_PROMPT
+
+
 # ---------------------------------------------------------------------
 # answer -- tool-calling path
 # ---------------------------------------------------------------------

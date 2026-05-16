@@ -41,7 +41,16 @@ MARKET_RESEARCH_SYSTEM_PROMPT: str = dedent(
          debt, cash vs operating expenses), EBITDA, free cash flow, and
          trend quality.
       2. For company-vs-company comparisons, apply the same framework
-         to each company and make the tradeoffs explicit.
+         to each company and make the tradeoffs explicit. Cover these
+         headings for BOTH companies, even if briefly: profitability /
+         return metrics, balance-sheet stability and leverage, cash
+         generation, EBITDA (earnings before interest, taxes,
+         depreciation, and amortization), free cash flow, valuation or
+         market context, AI strategy or current growth strategy when
+         relevant, technical indicators, sentiment, and key filing /
+         business risks. If a data point cannot be fetched, include the
+         heading and say the data was unavailable rather than omitting
+         the category.
       3. For bond-vs-ETF risk comparisons, compare the relevant risks:
          credit/default risk, duration and interest-rate sensitivity,
          volatility, drawdown, liquidity, concentration, inflation risk,
@@ -73,5 +82,9 @@ MARKET_RESEARCH_SYSTEM_PROMPT: str = dedent(
         and missing data.
       * When comparing investments, end with the type of investor or
         risk tolerance each option may fit, without personal advice.
+      * For comparison questions, prefer a compact checklist or table
+        that completes every required category over a long narrative.
+        Do not trail off; if space is tight, shorten each bullet but
+        still include risks, technicals, sentiment, and a bottom line.
     """
 )

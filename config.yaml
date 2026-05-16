@@ -14,8 +14,9 @@ app:
   about: >
     Fincent is a personal financial assistant that can answer questions about stocks, bonds,
     cash, ETFs, mutual funds, general portfolio theory, investment risk, market trading,
-    brokers, and general IRS/tax topics. For portfolio questions, Fincent uses the
-    configured portfolio account, holding, and transaction data available to the app.
+    brokers, general IRS/tax topics, and portfolio-grounded goal planning. For portfolio
+    and goal-planning questions, Fincent uses the configured portfolio account, holding,
+    and transaction data available to the app.
     Fincent has access only to the portfolio uploaded by the user. It uses a sample portfolio 
     for demo purposes till the user uploads their own portfolio.
   tools: 
@@ -29,6 +30,8 @@ app:
       description: "Tavily web search for current market, company, and AI investment research."
     - name: "financial-modeling-prep"
       description: "Financial Modeling Prep company fundamentals, filings, and 10-K risk analysis."
+    - name: "fincent-goal-planning"
+      description: "Internal planning math, Monte Carlo simulations, and portfolio summary context for goal planning."
 
 llm:
   provider: "openai"
@@ -95,6 +98,14 @@ agents:
       Uses market data, technical indicators, web search, sentiment,
       and company filings to explain investment tradeoffs in simple
       educational language.
+  goal_planning:
+    enabled: true
+    description: >
+      Helps users map their portfolio and savings capacity to financial
+      goals such as retirement, college, home purchase, vacation, and
+      recession stress tests. Uses deterministic TVM math, Monte Carlo
+      simulations, portfolio allocation context, and educational funding
+      waterfall guidance.
 
 rag:
   # Retrieval-Augmented Generation for the Q&A agent.
@@ -250,6 +261,31 @@ market_research:
         FMP_ACCESS_TOKEN: "${FMP_ACCESS_TOKEN}"
         FMP_API_KEY: "${FMP_ACCESS_TOKEN}"
         DYNAMIC_TOOL_DISCOVERY: "true"
+
+goal_planning:
+  # Bounded defaults keep simulations responsive in local dev and HF Spaces.
+  monte_carlo_simulations: 5000
+  max_monte_carlo_simulations: 20000
+  max_projection_years: 60
+  default_inflation_rate: 0.025
+  default_risk_free_rate: 0.04
+  tools:
+    internal:
+      enabled: true
+      command: "python"
+      args:
+        - "-m"
+        - "src.agents.goal_planning.mcp_server"
+      env: {}
+    openbb:
+      enabled: true
+      command: "openbb-mcp"
+      args:
+        - "--transport"
+        - "stdio"
+        - "--default-categories"
+        - "economy"
+      env: {}
 
 checkpointer:
   # LangGraph persists the per-thread state (messages, plan, etc.) so

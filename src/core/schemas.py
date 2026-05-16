@@ -19,6 +19,7 @@ class AgentName(str, Enum):
     QNA = "qna"
     PORTFOLIO = "portfolio"
     MARKET_RESEARCH = "market_research"
+    GOAL_PLANNING = "goal_planning"
 
 
 class Intent(str, Enum):
@@ -36,6 +37,7 @@ class Intent(str, Enum):
     QNA = "qna"
     PORTFOLIO = "portfolio"
     MARKET_RESEARCH = "market_research"
+    GOAL_PLANNING = "goal_planning"
     UNKNOWN = "unknown"
     MODERATED = "moderated"
 
@@ -74,9 +76,8 @@ class QueryRequest(BaseModel):
         description=(
             "Optional caller-provided intent. When set, the central "
             "planner skips LLM classification and dispatches directly "
-            "to the matching specialist (e.g. the Portfolio tab may pin "
-            "'portfolio' and the Market Research tab pins "
-            "'market_research'). Ignored if the hinted "
+            "to the matching specialist (e.g. tabs may pin "
+            "'portfolio', 'market_research', or 'goal_planning'). Ignored if the hinted "
             "specialist is disabled in config."
         ),
     )

@@ -79,6 +79,18 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
                           of bond X vs ETF Y", and "What is the best AI
                           investment today?" These questions do not ask
                           about the user's own accounts or holdings.
+      - goal_planning  -> Personal financial goal planning that maps the
+                          user's current portfolio, contribution capacity,
+                          goal amount, timeline, and risk profile to goals
+                          such as retirement, college, home purchase, large
+                          vacations, or recession stress tests. Use this for
+                          questions like "Can I retire at 60?", "Can I buy a
+                          home in 2 years?", "Is my 529 on track?", "Can I
+                          afford a $12,000 vacation?", and "What happens if
+                          my portfolio drops 25%?" Goal planning may involve
+                          the user's own accounts, but it is distinct from
+                          portfolio inventory questions because it projects
+                          cash flows and goal outcomes.
       - unknown        -> Use only when nothing else fits.
 
     Routing rules:
@@ -88,8 +100,9 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
       2. If the intent is qna, set "handled_by_central": false and emit ONLY "qna".
       3. If the intent is portfolio, set "handled_by_central": false and emit ONLY "portfolio".
       4. If the intent is market_research, set "handled_by_central": false and emit ONLY "market_research".
-      5. Never invent intents that are not in the list above.
-      6. Be concise in "rationale" (one short sentence).
+      5. If the intent is goal_planning, set "handled_by_central": false and emit ONLY "goal_planning".
+      6. Never invent intents that are not in the list above.
+      7. Be concise in "rationale" (one short sentence).
 
     Respond with a single JSON object matching this schema:
 
@@ -120,6 +133,11 @@ ROUTER_SYSTEM_PROMPT: str = dedent(
           "What are the risks of investing in Tesla?",
           "Compare the risks of bond X vs ETF Y",
           "What is the best AI investment today?"
+      - goal_planning: "I want to retire at 60 with $8,000 a month",
+          "I want to buy a house in Cupertino in 2 years",
+          "Is my current 529 plan on track?",
+          "Can I afford a $12,000 vacation next summer?",
+          "If my portfolio drops 25%, how many extra years will I have to work?"
     """
 )
 

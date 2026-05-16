@@ -30,10 +30,14 @@ The UI is organised as three tabs:
 * **Market Research** -- pinned to the Market Research agent for
                    company, security, filing, risk, and investment
                    theme analysis.
+* **Goal Planning** -- pinned to the Goal Planning agent for retirement,
+                   college, home purchase, vacation, and stress-test
+                   scenarios grounded in the user's portfolio.
 
 Each tab uses its own LangGraph thread (``<session>-qna`` /
-``<session>-portfolio`` / ``<session>-market-research``) so the three
-transcripts are independent and survive reloads.
+``<session>-portfolio`` / ``<session>-market-research`` /
+``<session>-goal-planning``) so transcripts are independent and survive
+reloads.
 """
 
 from __future__ import annotations
@@ -80,6 +84,7 @@ DEFAULT_SESSION_ID: str = "default-session"
 _QNA_SUFFIX: str = "qna"
 _PORTFOLIO_SUFFIX: str = "portfolio"
 _MARKET_RESEARCH_SUFFIX: str = "market-research"
+_GOAL_PLANNING_SUFFIX: str = "goal-planning"
 
 # Available chat models offered in the sidebar selector.
 _AVAILABLE_MODELS: List[str] = ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4", "gpt-4o-mini"]
@@ -100,6 +105,14 @@ _MARKET_RESEARCH_SUGGESTIONS: List[str] = [
     "Compare Procter and Gamble with Unilever",
     "What are the risks of investing in Tesla?",
     "What is the best AI investment today?",
+]
+
+_GOAL_PLANNING_SUGGESTIONS: List[str] = [
+    "I want to retire at 60 with $8,000/month in today's dollars. Am I on track?",
+    "I want to buy a home in 2 years. Is my down payment too exposed to stocks?",
+    "My kid starts college in 10 years. Is my 529 on target?",
+    "Can I afford a $12,000 vacation next summer?",
+    "If my portfolio drops 25%, how many extra years might I need to work?",
 ]
 
 
@@ -300,6 +313,18 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
                 st.session_state[_history_state_key(_MARKET_RESEARCH_SUFFIX)] = []
                 st.rerun()
 
+        if st.button("Clear Goal Planning conversation", key="reset_goal_planning_btn"):
+            try:
+                reset_thread(
+                    api_base_url,
+                    _thread_id_for(session_id, _GOAL_PLANNING_SUFFIX),
+                )
+            except FincentApiError as exc:
+                st.error(f"Reset failed: {exc}")
+            else:
+                st.session_state[_history_state_key(_GOAL_PLANNING_SUFFIX)] = []
+                st.rerun()
+
         st.markdown("---")
         _render_portfolio_upload(cfg, api_base_url)
 
@@ -314,6 +339,9 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
         market_tid = html.escape(
             _thread_id_for(session_id, _MARKET_RESEARCH_SUFFIX), quote=True
         )
+        goal_tid = html.escape(
+            _thread_id_for(session_id, _GOAL_PLANNING_SUFFIX), quote=True
+        )
         st.markdown(
             f"<p style='font-size:0.75rem;color:#6b7280;line-height:1.5;margin:0;'>"
             f"<span style='color:#374151;font-weight:600;'>Backend</span> · "
@@ -326,7 +354,9 @@ def _render_sidebar(api_base_url: str, session_id: str) -> None:
             f"<span style='color:#374151;font-weight:600;'>Portfolio thread</span> · "
             f"<span style='word-break:break-all;'>{port_tid}</span><br/>"
             f"<span style='color:#374151;font-weight:600;'>Market Research thread</span> · "
-            f"<span style='word-break:break-all;'>{market_tid}</span></p>",
+            f"<span style='word-break:break-all;'>{market_tid}</span><br/>"
+            f"<span style='color:#374151;font-weight:600;'>Goal Planning thread</span> · "
+            f"<span style='word-break:break-all;'>{goal_tid}</span></p>",
             unsafe_allow_html=True,
         )
         st.caption(
@@ -382,7 +412,7 @@ def _render_portfolio_upload(cfg: Any, api_base_url: str) -> None:  # noqa: ANN0
                     file_name="sample-accounts.json",
                     mime="application/json",
                     key="dl_sample_accounts",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.caption("_(sample-accounts.json not yet available)_")
@@ -394,7 +424,7 @@ def _render_portfolio_upload(cfg: Any, api_base_url: str) -> None:  # noqa: ANN0
                     file_name="sample-transactions.json",
                     mime="application/json",
                     key="dl_sample_txns",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.caption("_(sample-transactions.json not yet available)_")
@@ -791,7 +821,11 @@ def _render_chat_tab(
             pair = suggestions[i : i + 2]
             cols = st.columns(len(pair))
             for j, (col, question) in enumerate(zip(cols, pair)):
-                if col.button(question, key=f"suggest_{suffix}_{i + j}", use_container_width=True):
+                if col.button(
+                    question,
+                    key=f"suggest_{suffix}_{i + j}",
+                    width="stretch",
+                ):
                     st.session_state[preset_key] = question
                     st.rerun()
 
@@ -885,6 +919,28 @@ def _render_market_research_tab(api_base_url: str, session_id: str) -> None:
     )
 
 
+def _render_goal_planning_tab(api_base_url: str, session_id: str) -> None:
+    """Goal Planning tab: pinned to the Goal Planning specialist."""
+
+    _render_chat_tab(
+        api_base_url=api_base_url,
+        session_id=session_id,
+        suffix=_GOAL_PLANNING_SUFFIX,
+        placeholder="Ask about retirement, college, home purchase, or another goal...",
+        input_key="goal_planning_chat_input",
+        intent_hint="goal_planning",
+        intro=(
+            "Plan goals against your current portfolio, time horizon, savings "
+            "rate, and risk exposure. Results are educational planning scenarios, "
+            "not professional financial advice."
+        ),
+        suggestions=_GOAL_PLANNING_SUGGESTIONS,
+        suggestions_caption=(
+            "Ask a goal-planning question. Try any of these to get started."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------
@@ -911,8 +967,8 @@ def main() -> None:
     if subtitle:
         st.caption(subtitle)
 
-    qna_tab, portfolio_tab, market_research_tab = st.tabs(
-        ["QnA", "Portfolio", "Market Research"]
+    qna_tab, portfolio_tab, market_research_tab, goal_planning_tab = st.tabs(
+        ["QnA", "Portfolio", "Market Research", "Goal Planning"]
     )
     with qna_tab:
         _render_qna_tab(api_base_url, session_id)
@@ -920,6 +976,8 @@ def main() -> None:
         _render_portfolio_tab(api_base_url, session_id)
     with market_research_tab:
         _render_market_research_tab(api_base_url, session_id)
+    with goal_planning_tab:
+        _render_goal_planning_tab(api_base_url, session_id)
 
 
 if __name__ == "__main__":

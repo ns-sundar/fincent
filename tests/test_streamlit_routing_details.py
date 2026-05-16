@@ -54,6 +54,22 @@ def test_agents_involved_market_research_specialist():
     assert _agents_involved(plan, responses) == ["market_research"]
 
 
+def test_agents_involved_goal_planning_specialist():
+    """Goal Planning responses should display as the contributing agent."""
+    plan: Dict[str, Any] = {
+        "handled_by_central": False,
+        "intents": ["goal_planning"],
+    }
+    responses: List[Dict[str, Any]] = [
+        {
+            "agent": "goal_planning",
+            "content": "Your retirement plan needs a higher savings rate.",
+            "metadata": {},
+        },
+    ]
+    assert _agents_involved(plan, responses) == ["goal_planning"]
+
+
 def test_agents_involved_central_direct_when_handled_by_central():
     """With a direct central answer, the list should show 'central'."""
     plan = {"handled_by_central": True, "intents": ["app_identity"]}

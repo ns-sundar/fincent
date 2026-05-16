@@ -12,6 +12,8 @@ def test_load_default_config(monkeypatch):
     """The bundled config.yaml should parse cleanly into AppConfig."""
     monkeypatch.delenv("FINCENT__CHECKPOINTER__PATH", raising=False)
     monkeypatch.delenv("FINCENT__RAG__ENABLED", raising=False)
+    monkeypatch.delenv("FINCENT__GOAL_PLANNING__TOOLS__INTERNAL__ENABLED", raising=False)
+    monkeypatch.delenv("FINCENT__GOAL_PLANNING__TOOLS__OPENBB__ENABLED", raising=False)
     from src.core.config import reset_config_cache
 
     reset_config_cache()
@@ -23,6 +25,7 @@ def test_load_default_config(monkeypatch):
     assert cfg.llm.rate_limit_fallback_model == "gpt-5.4"
     assert cfg.agents.qna.enabled is True
     assert cfg.agents.portfolio.enabled is True
+    assert cfg.agents.goal_planning.enabled is True
     assert cfg.checkpointer.path == "/data/checkpoints.sqlite"
     assert cfg.rag.enabled is True
     assert cfg.rag.vector_db_path == "/data/vector_db"
@@ -37,6 +40,8 @@ def test_load_default_config(monkeypatch):
     assert cfg.rag.mcp_server.tool_name == "rag_search"
     assert cfg.server.startup_health_wait_seconds == 900
     assert cfg.server.healthcheck_interval_seconds == 90
+    assert cfg.goal_planning.monte_carlo_simulations == 5000
+    assert cfg.goal_planning.tools.internal.enabled is True
 
 
 def test_env_var_overrides(monkeypatch, tmp_path: Path):

@@ -1,0 +1,77 @@
+[
+  {
+    "input": "I want to retire at 60 with $8,000 a month in today's dollars. Based on my current portfolio and a $1,500/month contribution, will I make it?",
+    "expected_output": "A good answer should identify this as retirement goal planning, use the user's portfolio balance and allocation, account for inflation or today's dollars, calculate or estimate whether a $1,500 monthly contribution reaches the retirement income target, discuss required savings rates, use Monte Carlo probability-of-success framing when available, and avoid guaranteeing the outcome.",
+    "retrieval_context": [
+      "Retirement planning should compare current portfolio value, savings rate, time horizon, inflation-adjusted spending need, expected return, volatility, and probability of success."
+    ],
+    "additional_metadata": {
+      "intent": "goal_planning",
+      "source": "portfolio_goal_planning",
+      "handled_by_central": false,
+      "expected_agents": [
+        "goal_planning"
+      ]
+    }
+  },
+  {
+    "input": "I want to buy a house in Cupertino in 2 years. Should I keep my downpayment money in my current stock portfolio or move it into short-term bonds?",
+    "expected_output": "A good answer should flag the two-year horizon as short-term, explain that high equity exposure is an unsafe risk profile for down-payment money, compare cash, Treasury bills, CDs, money market funds, and short-duration bonds as lower-volatility choices, and relate the recommendation to the user's portfolio allocation without promising returns.",
+    "retrieval_context": [
+      "Short-horizon goals such as home down payments usually prioritize capital preservation and liquidity over return maximization."
+    ],
+    "additional_metadata": {
+      "intent": "goal_planning",
+      "source": "portfolio_goal_planning",
+      "handled_by_central": false,
+      "expected_agents": [
+        "goal_planning"
+      ]
+    }
+  },
+  {
+    "input": "My kid goes to college in 10 years. Is my current 529 plan on target, or do I need to reallocate funds from my taxable account?",
+    "expected_output": "A good answer should treat this as a college funding goal, use a 10-year horizon, compare current education-designated assets if available against a future tuition target or state missing inputs, estimate needed savings or transfer amounts, discuss 529 and taxable tradeoffs at a high level, and consider de-risking as college approaches.",
+    "retrieval_context": [
+      "College planning should consider time horizon, education account balances, expected cost inflation, contribution rate, asset allocation, and whether taxable assets may need to supplement dedicated 529 savings."
+    ],
+    "additional_metadata": {
+      "intent": "goal_planning",
+      "source": "portfolio_goal_planning",
+      "handled_by_central": false,
+      "expected_agents": [
+        "goal_planning"
+      ]
+    }
+  },
+  {
+    "input": "Can I afford a $12,000 vacation next summer, or will that significantly derail my long-term retirement track?",
+    "expected_output": "A good answer should model the vacation as a near-term discretionary withdrawal, compare the $12,000 cost with portfolio size and annual savings, explain the short-term cash-flow impact and possible long-term opportunity cost, and state whether it appears likely to materially affect retirement probability under clear assumptions.",
+    "retrieval_context": [
+      "Discretionary expense tests should compare the spending amount against liquid assets, ongoing savings, retirement time horizon, and the opportunity cost of removing funds from long-term compounding."
+    ],
+    "additional_metadata": {
+      "intent": "goal_planning",
+      "source": "portfolio_goal_planning",
+      "handled_by_central": false,
+      "expected_agents": [
+        "goal_planning"
+      ]
+    }
+  },
+  {
+    "input": "If we hit a prolonged recession next year and my portfolio drops 25%, how many extra years will I have to work?",
+    "expected_output": "A good answer should run or describe a stress-test scenario with a 25% portfolio decline, compare the post-shock portfolio with the original retirement trajectory, estimate additional savings or work years needed to recover under stated return and contribution assumptions, and explain that results are scenario-based rather than certain.",
+    "retrieval_context": [
+      "Stress tests should shock the portfolio value, rerun the retirement funding path, estimate the recovery gap, and translate the gap into extra contributions or extra years of work under stated assumptions."
+    ],
+    "additional_metadata": {
+      "intent": "goal_planning",
+      "source": "portfolio_goal_planning",
+      "handled_by_central": false,
+      "expected_agents": [
+        "goal_planning"
+      ]
+    }
+  }
+]

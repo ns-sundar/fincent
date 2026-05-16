@@ -49,6 +49,10 @@ from src.agents.market_research.mcp_tools import (
     start_market_research_mcp_sessions,
     stop_market_research_mcp_sessions,
 )
+from src.agents.goal_planning.mcp_tools import (
+    start_goal_planning_mcp_sessions,
+    stop_goal_planning_mcp_sessions,
+)
 from src.agents.portfolio.mcp_tools import (
     start_portfolio_mcp_sessions,
     stop_portfolio_mcp_sessions,
@@ -276,6 +280,11 @@ def _build_lifespan(cfg: AppConfig):
                 "Market Research MCP startup failed; continuing without tools"
             )
 
+        try:
+            await start_goal_planning_mcp_sessions(cfg)
+        except Exception:  # noqa: BLE001 -- never block RAG / serving
+            _logger.exception("Goal Planning MCP startup failed; continuing without tools")
+
         _logger.info("RAG lifespan: starting ingestion (enabled=%s)", cfg.rag.enabled)
         try:
             # ingest_if_needed is synchronous + potentially long-running
@@ -312,6 +321,13 @@ def _build_lifespan(cfg: AppConfig):
                 _logger.debug("Market Research MCP lifespan shutdown: %s", exc)
             else:
                 _logger.exception("Market Research MCP shutdown failed")
+        try:
+            await stop_goal_planning_mcp_sessions()
+        except BaseException as exc:  # noqa: BLE001
+            if is_lifespan_shutdown_noise(exc):
+                _logger.debug("Goal Planning MCP lifespan shutdown: %s", exc)
+            else:
+                _logger.exception("Goal Planning MCP shutdown failed")
 
     return _lifespan
 

@@ -53,6 +53,7 @@ from src.workflow.nodes import (
     SPECIALIST_NODE_FOR,
     aggregator_node,
     central_direct_node,
+    goal_planning_node,
     market_research_node,
     planner_node,
     portfolio_node,
@@ -114,6 +115,7 @@ def build_graph(
     g.add_node("qna_node", qna_node)
     g.add_node("portfolio_node", portfolio_node)
     g.add_node("market_research_node", market_research_node)
+    g.add_node("goal_planning_node", goal_planning_node)
     g.add_node("aggregator", aggregator_node)
 
     g.add_edge(START, "planner")
@@ -127,6 +129,7 @@ def build_graph(
             "qna_node": "qna_node",
             "portfolio_node": "portfolio_node",
             "market_research_node": "market_research_node",
+            "goal_planning_node": "goal_planning_node",
         },
     )
 
@@ -134,6 +137,7 @@ def build_graph(
     g.add_edge("qna_node", "aggregator")
     g.add_edge("portfolio_node", "aggregator")
     g.add_edge("market_research_node", "aggregator")
+    g.add_edge("goal_planning_node", "aggregator")
     g.add_edge("aggregator", END)
 
     return g.compile(checkpointer=checkpointer) if checkpointer else g.compile()
