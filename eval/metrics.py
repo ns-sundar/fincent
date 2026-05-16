@@ -42,6 +42,12 @@ The answer should:
   and should not be penalized as irrelevant.
 - For out-of-scope questions, a refusal plus a concise redirect/offer to help with finance,
   economics, or portfolio-related questions is the desired behavior.
+- For app_features questions about which tools Fincent uses, when the expected output names
+  several integrations (for example OpenBB, fincent-rag, Alpha Vantage, Tavily, Financial
+  Modeling Prep), treat coverage as correct if the answer names each with a substantially
+  accurate description; minor reordering, bullets vs prose, or a short caveat about API keys
+  is fine. Do not penalize answers for including those integrations when they appear in the
+  expected output.
 - Avoid unsupported claims or personal facts not present in the expected output or context.
 """
 
@@ -65,8 +71,9 @@ A good answer should:
   domain, including stocks, bonds, cash, ETFs, mutual funds, portfolio theory,
   investment risk, market trading, brokers, and general tax topics.
 - For app_features, accept and expect answers that name specific configured
-  tool integrations (such as OpenBB, fincent-rag), data-access behaviors,
-  version, authorship, or other capabilities drawn from the app metadata.
+  tool integrations (such as OpenBB, fincent-rag, Alpha Vantage, Tavily,
+  Financial Modeling Prep when applicable), data-access behaviors, version,
+  authorship, or other capabilities drawn from the app metadata.
   Tool integrations are first-class app features; do not penalize an answer
   merely because it names backend or infrastructure tools. Penalize only
   long unrelated feature dumps or capabilities that were not asked about.

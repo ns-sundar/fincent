@@ -14,7 +14,7 @@
   },
   {
     "input": "What tools does Fincent use?",
-    "expected_output": "Fincent's configured tools include OpenBB for financial data and analysis, and fincent-rag, a curated knowledge base about stocks, bonds, cash, ETFs, mutual funds, portfolio theory, investment risk, market trading, brokers, and general tax topics.",
+    "expected_output": "Fincent's configured tools include: OpenBB for financial data and analysis; fincent-rag, a curated knowledge base about stocks, bonds, cash, ETFs, mutual funds, portfolio theory, investment risk, market trading, brokers, and general tax topics; Alpha Vantage for market data, technical indicators, and market sentiment; Tavily for web search supporting current market, company, and research questions; and Financial Modeling Prep for company fundamentals, filings, and 10-K-style risk analysis. Optional integrations may require API keys or deployment settings.",
     "retrieval_context": [],
     "additional_metadata": {
       "intent": "app_features",

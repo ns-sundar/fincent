@@ -15,7 +15,7 @@
     }
   },
   {
-    "input": "Compare companies ANC and DEF as investments",
+    "input": "Compare companies GOOG and META as investments",
     "expected_output": "A good answer should apply the same investment framework to both companies: profitability and return metrics, stability, leverage, cash generation, EBITDA, free cash flow, valuation or market context, AI strategy if relevant, technical indicators, sentiment, and key filing risks.",
     "retrieval_context": [
       "Company comparisons should use a consistent side-by-side framework so differences in returns, balance-sheet stability, operating trends, free cash flow, valuation, and risks are easy to compare."
