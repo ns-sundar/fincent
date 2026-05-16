@@ -61,7 +61,7 @@
   },
   {
     "input": "If we hit a prolonged recession next year and my portfolio drops 25%, how many extra years will I have to work?",
-    "expected_output": "A good answer should run or describe a stress-test scenario with a 25% portfolio decline, compare the post-shock portfolio with the original retirement trajectory, estimate additional savings or work years needed to recover under stated return and contribution assumptions, and explain that results are scenario-based rather than certain.",
+    "expected_output": "A good answer should run or describe a stress-test scenario with a 25% portfolio decline, compare the post-shock portfolio with the original retirement trajectory, and give a concrete estimate of additional years of work (a number or tight range), backed by stated contribution, return or Monte Carlo, and retirement-target assumptions—even if some assumptions are illustrative because the user did not supply them. It should explain that results are scenario-based rather than certain, and may invite the user to refine inputs after showing the estimate.",
     "retrieval_context": [
       "Stress tests should shock the portfolio value, rerun the retirement funding path, estimate the recovery gap, and translate the gap into extra contributions or extra years of work under stated assumptions."
     ],

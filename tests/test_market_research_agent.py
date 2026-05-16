@@ -243,9 +243,17 @@ def test_market_research_prompt_requires_company_comparison_framework():
         "sentiment",
         "key filing",
         "Do not trail off",
+        "parallel structure",
     ]
     for term in required_terms:
         assert term in MARKET_RESEARCH_SYSTEM_PROMPT
+
+
+def test_market_research_prompt_bans_bullish_bearish_recommendation_framing():
+    from src.agents.market_research.prompts import MARKET_RESEARCH_SYSTEM_PROMPT
+
+    assert "bullish case" in MARKET_RESEARCH_SYSTEM_PROMPT
+    assert "Never stop mid-thought" in MARKET_RESEARCH_SYSTEM_PROMPT
 
 
 def test_merge_openbb_coerces_yfinance_to_fmp_for_equity_fundamental_ratios():

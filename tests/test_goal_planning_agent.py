@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.tools import tool
 
 from src.agents.goal_planning import answer as goal_planning_answer
+from src.agents.goal_planning.prompts import GOAL_PLANNING_SYSTEM_PROMPT
 from src.core.schemas import AgentName
 
 
@@ -124,6 +125,12 @@ def test_goal_planning_native_monte_carlo_tool_accepts_missing_portfolio_mix():
     )
     assert "probability_of_success" in out
     assert "portfolio_mix" in out
+
+
+def test_goal_planning_prompt_requires_stress_test_extra_years_estimate():
+    assert "25%" in GOAL_PLANNING_SYSTEM_PROMPT or "drawdown" in GOAL_PLANNING_SYSTEM_PROMPT
+    assert "extra years" in GOAL_PLANNING_SYSTEM_PROMPT
+    assert "illustrative defaults" in GOAL_PLANNING_SYSTEM_PROMPT
 
 
 def test_goal_planning_internal_error_keeps_details_in_metadata_only():

@@ -299,6 +299,13 @@ def test_portfolio_prompt_forbids_extra_transaction_facts():
     assert "Do not add nearby years, related transactions" in PORTFOLIO_SYSTEM_PROMPT
 
 
+def test_portfolio_prompt_filters_transactions_by_calendar_year():
+    from src.agents.portfolio.prompts import PORTFOLIO_SYSTEM_PROMPT
+
+    assert "Calendar-year transaction filters" in PORTFOLIO_SYSTEM_PROMPT
+    assert "January 1" in PORTFOLIO_SYSTEM_PROMPT and "December 31" in PORTFOLIO_SYSTEM_PROMPT
+
+
 # ---------------------------------------------------------------------
 # answer -- tool-calling path
 # ---------------------------------------------------------------------

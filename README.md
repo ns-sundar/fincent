@@ -12,57 +12,77 @@ pinned: false
 
 ## Overview
 
-Fincent is a personal financial assistant based on a multi-agent AI framework. It helps users ask general finance questions, learn about stocks,
-bonds, ETFs, taxes, market mechanics, and portfolio theory, analyze
-their own accounts, holdings, transactions, allocation, concentration,
-exposure, and portfolio risk, and research public companies, securities,
-investment risks, and AI market themes. It presents three tabs in its UI:
-general financial Q&A, uploaded portfolio analysis, and Market Research.
-You can start with a default sample portfolio for convenience. The UI also adds an **Under the Hood** section to each response, showing
-developers and curious users which agents and tools were invoked.
+Fincent is a multi-agent personal finance assistant. Aimed at the financially curious,
+it offers general Q&A on financial topics, analytics on the user's own uploaded
+portfolio, market/company research with real-time data and help with long-run goal
+or stress-test modelling.
 
-Fincent combines several knowledge sources and safety layers:
+Four specialist agents coordinate to provide this functionality. The Q&A agent answers
+broad finance questions from a FAISS-backed article catalog. The Portfolio agent
+interprets  the user's holdings, transactions, allocation, and risk, with optional live quotes when
+tools are enabled. The Market Research agent draws on public data about companies,
+securities, sectors, filings, and themes without giving personalized buy-or-sell advice.
+The Goal Planning agent uses the same portfolio snapshot for retirement, education,
+housing, spending, drawdown, time-value-of-money, and Monte Carlo scenarios.
 
-- **Streamlit** for the browser UI.
-- **FastAPI** for typed HTTP endpoints, session history, guardrails, and
-  LangGraph invocation.
-- **LangGraph** for the central planner/router, specialist fan-out, and
-  final response aggregation.
-- **OpenBB APIs** for real-time financial and market knowledge, with
-  yFinance configured as the default backend for key equity quote and price
-  tools.
-- **Alpha Vantage** for technical indicators such as RSI/MACD and market
-  sentiment via Alpha Intelligence.
-- **Tavily** for current web and news search around companies, sectors, and
-  AI investment themes.
-- **Financial Modeling Prep (FMP)** for company fundamentals, filings, and
-  10-K risk analysis.
-- **FAISS-backed curated knowledge base** for grounded general finance Q&A.
-- **FastMCP Server** for exposing tools such as OpenBB, Alpha Vantage,
-  Tavily, FMP, and Fincent RAG using MCP.
-- **OpenAI Moderation API** as an input guardrail on the `/query` endpoint.
-- **Markdown validation** as an output guardrail for assistant responses.
-- **DeepEval** for end-to-end LLM evaluation against intent-based golden
-  datasets.
+You can run it locally or deploy your own Hugging Face Space ([Installation and Usage](#installation-and-usage)); a preinstalled deployment lives at [huggingface.co/spaces/nssundar/fincent](https://huggingface.co/spaces/nssundar/fincent).
+Fincent is educational software, not a professional adviser, and it only sees portfolio
+data you supply.
 
-Fincent is educational software, not a professional financial adviser. It has no access to your personal information except for the portfolio that you upload.
+Fincent combines application, agent, data, and safety infrastructure to deliver that
+experience reliably:
+
+- **Application and orchestration.** Streamlit provides the browser UI for local use and
+  Hugging Face Spaces. FastAPI and LangServe expose Fincent as a web service, with typed service routes, session
+  checkpoints, guardrails, and LangGraph `invoke` and `stream` endpoints. LangGraph
+  handles intent routing, specialist fan-out, and final response aggregation.
+
+- **Data and tools.** FastMCP connects tool servers for OpenBB, Financial Modeling Prep,
+  Fincent RAG, Goal Planning math, and optional providers such as Tavily and Alpha
+  Vantage. OpenBB and yFinance provide default market context, FMP adds fundamentals and
+  filings when configured, Tavily and Alpha Vantage extend search and signals, and FAISS
+  powers retrieval over the curated article catalog.
+
+- **Safety and quality.** The OpenAI Moderation API screens incoming `/query` requests,
+  server-side validation checks assistant markdown before API responses are returned,
+  and Streamlit sanitizes rendered content. DeepEval runs golden intent datasets with
+  custom G-Eval rubrics to catch regressions in routing and answer quality.
+
+Fincent is architected for robustness across local and hosted deployments. See
+[`TECHNICAL_DESIGN.md`](TECHNICAL_DESIGN.md) for specifics.
 
 ---
 
 ## Installation and Usage
 
-### Local
+Install from source on your machine or deploy your own Docker Space on Hugging Face.
+To use Fincent without installing anything, open the preinstalled Space at
+[huggingface.co/spaces/nssundar/fincent](https://huggingface.co/spaces/nssundar/fincent).
 
-Prerequisites:
+### Prerequisites
+The API keys used by Fincent are documented in `.env.example`: look at that for the specific names. **Locally**, set them in `.env` or export them in your shell. **On Hugging Face**, create the same
+names under the Space **Settings → Secrets and variables**; store tokens as Secrets, not
+public variables.
 
-- Python 3.11+
-- `OPENAI_API_KEY`
-- Optional API keys for the Market Research agent:
-  `FMP_ACCESS_TOKEN` (or `FMP_API_KEY` as an alias)
-- A writable `/data` directory, or overrides for the checkpoint, vector DB,
-  and portfolio data paths
+**API keys**:
 
-Run locally:
+- **`OPENAI_API_KEY`** — **Required.** Chat models and `/query` moderation.
+- **`FMP_ACCESS_TOKEN`** — **Optional** (alias: **`FMP_API_KEY`**). Same value unlocks the FMP MCP server and OpenBB routes that use the FMP provider.
+- **`TAVILY_API_KEY`** — **Optional.** Native Tavily search/extract when enabled in config.
+- **`ALPHA_VANTAGE_API_KEY`** — **Optional.** Alpha Vantage MCP tools when that server is turned on (off by default on the stock Python 3.11 Docker image).
+
+**Data storage.** By default the app writes the LangGraph checkpoint database, FAISS
+vector store, and runtime portfolio JSON under **`/data`** (`checkpoints.sqlite`,
+`vector_db/`, `portfolio/`). **Locally**, create a writable `/data` or point
+`FINCENT__CHECKPOINTER__PATH`, `FINCENT__RAG__VECTOR_DB_PATH`, and related settings
+elsewhere. **On Hugging Face**, the container uses the same paths; enable Persistent
+Storage on the Space if you want `/data` to survive rebuilds.
+
+**Local-only.
+** **Python 3.11+** is required for a from-source install (the published
+Space runs the bundled Docker image instead).
+
+### Local Install
 
 ```bash
 cd fincent
@@ -71,27 +91,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Fill OPENAI_API_KEY and other API keys in .env
+# At minimum set OPENAI_API_KEY; add optional keys from Prerequisites.
 
 ./run_local.sh
 ```
 
-This starts:
-
-- FastAPI on `http://localhost:8000`
-- Streamlit on `http://localhost:8501`
-
-Useful API endpoints:
-
-- `GET /health`
-- `GET /rag/status`
-- `POST /query`
-- `GET /history/{thread_id}`
-- `POST /reset/{thread_id}`
-- `POST /fincent/invoke`
-- `POST /fincent/stream`
-
-Example request:
+`./run_local.sh` starts FastAPI and Streamlit on `API_PORT` and `UI_PORT` (defaults
+**8000** and **8501**). Open **http://localhost:8501** for Streamlit; the API lives at
+**http://localhost:8000** by default. Common endpoints include `GET /health`,
+`GET /rag/status`, `POST /query`, `GET /history/{thread_id}`, `POST /reset/{thread_id}`,
+`POST /fincent/invoke`, and `POST /fincent/stream`.
 
 ```bash
 curl -s http://localhost:8000/query \
@@ -99,63 +108,24 @@ curl -s http://localhost:8000/query \
   -d '{"query": "What is an ETF?", "session_id": "demo"}'
 ```
 
-Session state is persisted with LangGraph's SQLite checkpointer. By
-default, Fincent writes to absolute paths under `/data`:
+The first boot can take a while while RAG ingestion builds the FAISS index; later runs
+reuse it.
 
-- `/data/checkpoints.sqlite` for conversation checkpoints
-- `/data/vector_db/` for the FAISS index
-- `/data/portfolio/` for runtime portfolio JSON files
-
-The first run may take a few minutes if the FAISS index does not already
-exist. FastAPI performs RAG ingestion during startup before serving HTTP.
-Once the index exists, later runs reuse it.
-
-### HuggingFace Spaces
-
-Fincent is configured for HuggingFace Spaces with the Docker SDK.
-
-1. Create a new Space.
-2. Select **Docker** as the SDK.
-3. Add `OPENAI_API_KEY` as a Space secret.
-4. For Market Research, also add `FMP_ACCESS_TOKEN` (or `FMP_API_KEY`) as a
-   Space secret.
-5. Optional but recommended: enable **Persistent Storage** for the Space so
-   `/data/checkpoints.sqlite`, `/data/vector_db/`, and `/data/portfolio/`
-   survive restarts.
-6. Push this repository or connect it to GitHub.
-
-The container exposes Streamlit on `$PORT` (default `7860`) and runs
-FastAPI internally on `API_PORT` (default `8000`). The Docker entrypoint
-starts FastAPI in the background, then starts Streamlit immediately so
-HuggingFace Spaces sees a public listener quickly even while FastAPI performs
-first-boot startup work such as RAG ingestion. Until FastAPI is healthy, the UI
-shows the backend as unreachable and user queries will fail cleanly rather than
-causing the container to restart.
-
-The Docker image installs the runtime pieces needed by the default MCP servers:
-`openbb-mcp` and the Python `fmp-mcp` package, invoked as
-`python -m fmp.server`. The entrypoint also creates the runtime directories
-under `/data` if they are missing. Without
-Persistent Storage, `/data` is still writable but ephemeral; with Persistent
-Storage, the FAISS index and session/portfolio data are reused after rebuilds.
-PDF ingestion uses the lightweight `pypdf` path in Docker to avoid pulling large
-OCR/vision packages such as Torch and OpenCV into the image.
-
-Space secrets and variables:
-
-- `OPENAI_API_KEY` is required.
-- `FMP_ACCESS_TOKEN` or `FMP_API_KEY` enables FMP Starter-plan endpoints.
-- `TAVILY_API_KEY` is optional and enables native Python Tavily search/extract
-  tools without Node/npm or `npx`.
-- `ALPHA_VANTAGE_API_KEY` is optional; the Alpha Vantage MCP server is disabled
-  by default in Docker because its current package requires Python 3.13 while
-  the app image uses Python 3.11.
-- `FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS` defaults to `900` in Docker so
-  first-boot RAG ingestion has time to finish before Streamlit starts.
+### Hugging Face Spaces Install
+ 
+Create a **Docker** Space, connect this repository, and add the API keys from
+**Prerequisites** as Secrets. Turn on **Persistent Storage** if `/data` should
+outlast image rebuilds. Streamlit binds **`$PORT`** (often **7860**); FastAPI listens
+on **`API_PORT`** (default **8000**) inside the container. The entrypoint brings Streamlit up
+quickly so Hugging Face sees a listener while RAG ingestion finishes—the UI may show
+the backend as warming until `GET /health` succeeds. The image ships `openbb-mcp`,
+`python -m fmp.server`, lazy creation of `/data`, and `pypdf` for PDFs; Docker defaults
+**`FINCENT__SERVER__STARTUP_HEALTH_WAIT_SECONDS`** to **900** so first-boot ingestion can
+complete.
 
 ---
 
-## Arch
+## Architecture
 
 ```text
                          +--------------------+
@@ -183,11 +153,11 @@ Space secrets and variables:
               central direct  |          | specialist fan-out
                               |          |
                               v          v
-                       +------+--+   +---+----------------+
-                       | Central |   | Q&A / Portfolio /   |
-                       | answer  |   | Market Research     |
-                       |         |   | agents              |
-                       +------+--+   +---+----------------+
+                       +------+--+   +---+-----------------------+
+                       | Central |   | Q&A / Portfolio /        |
+                       | answer  |   | Market Research /        |
+                       |         |   | Goal Planning agents     |
+                       +------+--+   +---+-----------------------+
                               |          |
                               +-----+----+
                                     |
@@ -219,7 +189,10 @@ hard-pinned to the Portfolio agent; generic financial questions still route
 to Q&A, and personal portfolio questions asked in the Q&A tab still route to
 Portfolio. The Market Research tab pins `intent_hint="market_research"` so
 company, security, filing, and investment-theme questions go directly to the
-Market Research agent.
+Market Research agent. The Goal Planning tab pins `intent_hint="goal_planning"`
+so retirement, college, housing, vacation, and stress-test questions use the
+Goal Planning specialist with a separate conversation thread from the other
+tabs.
 
 Query classes:
 
@@ -233,6 +206,7 @@ Query classes:
 | Personal portfolio | "Am I over-concentrated in AAPL?" | Portfolio agent |
 | Market research | "Is Nvidia a good investment?" | Market Research agent |
 | Market/security risk | "Compare the risks of bond X vs ETF Y" | Market Research agent |
+| Goal planning | "If my portfolio drops 25% in a recession, how many extra years might I need to work?" | Goal Planning agent |
 
 For deeper implementation detail, see the
 [technical design](TECHNICAL_DESIGN.md), the source under `src/workflow/`
@@ -280,6 +254,7 @@ Golden datasets are organized by intent under `eval/eval.*.json`:
 - `eval.qna.json`
 - `eval.portfolio.json`
 - `eval.market_research.json`
+- `eval.goal_planning.json`
 
 Each row contains the user input, expected output, optional retrieval
 context, expected intent, whether the central agent should handle it
@@ -287,17 +262,17 @@ directly, and the expected agent sequence.
 
 Run the e2e evals:
 ```bash
- deepeval test run eval/test_e2e_intents.py
+deepeval test run eval/test_e2e_intents.py
 ```
 
 ```bash
 python -m pytest eval/test_e2e_intents.py
 ```
 
-The pytest runner loads all golden cases, starts Portfolio and Market
-Research FastMCP servers once for the test session, compiles the LangGraph
-once, and then runs each case through the full workflow with a fresh
-`session_id`. Before invoking DeepEval, it asserts deterministic routing
+The pytest runner loads all golden cases, starts Portfolio, Market
+Research, and Goal Planning FastMCP sessions once for the test session,
+compiles the LangGraph once, and then runs each case through the full workflow
+with a fresh `session_id`. Before invoking DeepEval, it asserts deterministic routing
 expectations: central-handled flag, primary intent, expected agents, and
 absence of agent errors.
 
@@ -340,7 +315,7 @@ The normal unit test suite uses fake LLMs from
 
 The validation suite covers configuration loading, central routing behavior,
 workflow execution, server endpoints, Streamlit routing helpers, RAG
-utilities, and portfolio data handling.
+utilities, portfolio data handling, and goal-planning math/MCP helpers.
 
 ---
 
@@ -350,11 +325,12 @@ utilities, and portfolio data handling.
 
 The central agent is the planner, direct responder, and aggregator. It
 classifies requests into intents such as `app_identity`, `app_features`,
-`chit_chat`, `out_of_scope`, `qna`, `portfolio`, and `market_research`.
+`chit_chat`, `out_of_scope`, `qna`, `portfolio`, `market_research`, and
+`goal_planning`.
 
 For central-handled intents, it answers directly using app metadata from
 `config.yaml`. For specialist intents, it routes to Q&A, Portfolio, Market
-Research, or a fan-out combination when the routing plan calls for it, then
+Research, Goal Planning, or a fan-out combination when the routing plan calls for it, then
 aggregates the specialist responses.
 
 ### Q&A Agent
@@ -442,6 +418,28 @@ If one of the optional MCP servers is unavailable
 or its key is missing, that server is skipped and the agent continues with
 the tools that did load.
 
+### Goal Planning Agent
+
+The Goal Planning agent helps users connect their **portfolio snapshot** and
+savings assumptions to long-horizon goals: retirement income targets, college
+funding, home purchases, discretionary spending (e.g. vacations), and **stress
+tests** (e.g. large portfolio drawdowns). Answers are **educational** only,
+not personalized financial, tax, or legal advice.
+
+The agent runs a ReAct tool-calling loop and can use:
+
+- **Internal MCP tools** (`python -m src.agents.goal_planning.mcp_server`):
+  deterministic time-value-of-money helpers, bounded **Monte Carlo**
+  simulation (NumPy), and a compact **portfolio summary** resource aligned
+  with the Portfolio agent's snapshot.
+- **OpenBB MCP** (optional, `economy` category in `config.yaml`): CPI,
+  Treasury yields, and related macro context when enabled.
+
+Goal Planning MCP sessions start during FastAPI lifespan alongside the other
+specialists. Monte Carlo size and projection horizons are capped in
+`config.yaml` under `goal_planning` so interactive use and Spaces stay
+responsive.
+
 ---
 
 ## Repository Layout
@@ -452,6 +450,7 @@ fincent/
     agents/
       central/      # Planner, direct answers, aggregator
       market_research/ # Market/company research with OpenBB/Alpha/Tavily/FMP tools
+      goal_planning/   # Goal planning specialist: TVM, Monte Carlo, OpenBB economy
       qna/          # Generic financial Q&A with FAISS RAG
       portfolio/    # Personal portfolio agent with OpenBB/RAG tools
     core/           # Config, LLM factory, shared schemas
@@ -479,34 +478,4 @@ chat model hits an OpenAI **rate limit** (`RateLimitError`), Fincent
 retries with **`llm.rate_limit_fallback_model`** (default **`gpt-5.4`** in
 `config.yaml`). Clear `FINCENT__LLM__RATE_LIMIT_FALLBACK_MODEL` to disable.
 
-```bash
-export OPENAI_API_KEY=sk-...
-export FINCENT__LLM__MODEL=gpt-5.4-mini
-export FINCENT__SERVER__PORT=8000
-export FINCENT__CHECKPOINTER__PATH=/data/checkpoints.sqlite
-
-export FINCENT__RAG__ENABLED=true
-export FINCENT__RAG__VECTOR_DB_PATH=/data/vector_db
-export FINCENT__RAG__TOP_K=5
-export FINCENT__RAG__USE_MMR=true
-
-export FINCENT__PORTFOLIO__TOOLS__OPENBB__ENABLED=true
-export FINCENT__PORTFOLIO__TOOLS__RAG__ENABLED=true
-
-export TAVILY_API_KEY=...  # Optional; enables native Tavily tools.
-export FMP_ACCESS_TOKEN=...
-# Or: export FMP_API_KEY=...  (same token; accepted as an alias)
-# Optional: force free-tier behavior even when an FMP key is configured.
-# export FINCENT_OPENBB_ALLOW_PAID_FMP_FUNDAMENTALS=false
-# Optional paid Intrinio only: expose Intrinio-only OpenBB tools.
-# export FINCENT_OPENBB_ALLOW_INTRINIO=true
-# export INTRINIO_API_KEY=...
-export FINCENT__MARKET_RESEARCH__TOOLS__OPENBB__ENABLED=true
-# Alpha Vantage MCP currently requires Python 3.13; disabled in the Docker image.
-# export FINCENT__MARKET_RESEARCH__TOOLS__ALPHA_VANTAGE__ENABLED=true
-# Tavily MCP requires Node/npm; leave disabled unless using a custom image.
-# export FINCENT__MARKET_RESEARCH__TOOLS__TAVILY__ENABLED=true
-export FINCENT__MARKET_RESEARCH__TOOLS__FMP__ENABLED=true
-```
-
-A template lives in `.env.example`.
+The supported environment variables are documented in `.env.example`. You can copy and edit it for your install.

@@ -118,7 +118,14 @@ PORTFOLIO_SYSTEM_PROMPT: str = dedent(
          for history, trends, or comparisons. For a single matching fee
          or transaction, one sentence with amount, date, and type is
          usually enough.
-      10. **Definitions and examples from my data:** If the user asks
+      10. **Calendar-year transaction filters:** If the user names a
+         calendar year (e.g. "in 2026", "during 2023"), include **only**
+         transactions whose **date** is on or after January 1 and on or
+         before December 31 of that year. Do **not** list dividends,
+         fees, or other rows dated in adjacent years—even for the same
+         ticker. Counts, tables, and opening lines ("you received N
+         dividends…") must match that filtered set only.
+      11. **Definitions and examples from my data:** If the user asks
          what a portfolio field or transaction type means in their
          data, explain the concept briefly and use only directly
          matching rows from the snapshot as examples. Do not substitute

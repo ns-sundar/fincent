@@ -52,6 +52,21 @@ The answer should:
   portfolio context, include deterministic savings or TVM reasoning when enough inputs are
   present, discuss probability of success or uncertainty when simulations are available,
   flag time-horizon/allocation mismatches, and avoid guarantees.
+- For goal_planning stress tests (drawdowns, recession) where the user asks for extra work
+  years or similar, treat the answer as successful if it gives a numeric or small-range
+  estimate under clearly labeled defaults, even when some personal inputs are invented for
+  illustration. Do not require the model to refuse or defer until the user supplies more
+  data if the expected output calls for a scenario estimate.
+- For market_research, questions such as "Is X a good investment?" should be satisfied by
+  educational analysis of fundamentals, valuation, technicals, sentiment, and risks **without**
+  the model telling the user to buy, sell, or hold. Do not fail solely because the answer
+  weighs investment merit, as long as it matches the expected educational framing.
+- For market_research company comparisons, accept answers that apply the same categories to
+  each ticker using parallel sections or a side-by-side markdown table, even when prose is
+  compact per company; both tickers should receive technicals, sentiment, and key risks.
+- For portfolio answers that reference a specific calendar year in the user's question,
+  treat listing dividends, fees, or other transactions dated outside that year as incorrect
+  when the expected output only contains in-year rows.
 - Avoid unsupported claims or personal facts not present in the expected output or context.
 """
 
@@ -88,6 +103,15 @@ A good answer should:
   probability language, and funding-waterfall guidance when they help connect
   the user's portfolio to retirement, college, home purchase, vacation, or
   stress-test goals.
+- For goal_planning stress tests, encourage answers that quantify extra years
+  of work (or contribution increases) after a stated portfolio shock, using
+  labeled illustrative assumptions when specifics are missing.
+- For market_research, questions like "Is X a good investment?" are in scope.
+  A balanced, educational discussion of business quality, valuation, technical
+  context, sentiment, and risks is helpful and is **not** the same as
+  personalized buy/sell advice. Do not fail relevancy because the response
+  analyzes investment merit unless it gives **direct** instructions to the
+  user to buy, sell, or hold a specific security.
 - For out_of_scope, treat a polite refusal plus a brief redirect to finance,
   economics, or portfolio topics as relevant and helpful.
 
