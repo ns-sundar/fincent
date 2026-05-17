@@ -26,27 +26,74 @@ The Goal Planning agent uses the same portfolio snapshot for retirement, educati
 housing, spending, drawdown, time-value-of-money, and Monte Carlo scenarios.
 
 You can run it locally or deploy your own Hugging Face Space ([Installation and Usage](#installation-and-usage)); a preinstalled deployment lives at [huggingface.co/spaces/nssundar/fincent](https://huggingface.co/spaces/nssundar/fincent).
-Fincent is educational software, not a professional adviser, and it only sees portfolio
-data you supply.
 
-Fincent combines application, agent, data, and safety infrastructure to deliver that
-experience reliably:
+Please note that Fincent is educational software, not a professional adviser. In terms of privacy, it only sees portfolio
+data that you upload.
 
-- **Application and orchestration.** Streamlit provides the browser UI for local use and
-  Hugging Face Spaces. FastAPI and LangServe expose Fincent as a web service, with typed service routes, session
-  checkpoints, guardrails, and LangGraph `invoke` and `stream` endpoints. LangGraph
-  handles intent routing, specialist fan-out, and final response aggregation.
+Fincent leverages several open source and proprietary frameworks and APIs to deliver this functionality:
 
-- **Data and tools.** FastMCP connects tool servers for OpenBB, Financial Modeling Prep,
-  Fincent RAG, Goal Planning math, and optional providers such as Tavily and Alpha
-  Vantage. OpenBB and yFinance provide default market context, FMP adds fundamentals and
-  filings when configured, Tavily and Alpha Vantage extend search and signals, and FAISS
-  powers retrieval over the curated article catalog.
-
-- **Safety and quality.** The OpenAI Moderation API screens incoming `/query` requests,
-  server-side validation checks assistant markdown before API responses are returned,
-  and Streamlit sanitizes rendered content. DeepEval runs golden intent datasets with
-  custom G-Eval rubrics to catch regressions in routing and answer quality.
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Framework or API</th>
+      <th>Description and Use</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="3" style="vertical-align: middle;">App and orchestration</td>
+      <td>Streamlit</td>
+      <td>Provides the browser UI for local use and Hugging Face Spaces.</td>
+    </tr>
+    <tr>
+      <td>FastAPI + LangServe</td>
+      <td>Expose Fincent as a web service with typed routes, session checkpoints, guardrails, and LangGraph <code>invoke</code> and <code>stream</code> endpoints.</td>
+    </tr>
+    <tr>
+      <td>LangGraph</td>
+      <td>Routes intent, fans out work to specialist agents, and aggregates final responses.</td>
+    </tr>
+    <tr>
+      <td rowspan="6" style="vertical-align: middle;">Tools and data</td>
+      <td>FastMCP</td>
+      <td>Connects tool servers for OpenBB, Financial Modeling Prep, Fincent RAG, Goal Planning math, and optional providers.</td>
+    </tr>
+    <tr>
+      <td>OpenBB + yFinance</td>
+      <td>Provide default market data and related public equity context.</td>
+    </tr>
+    <tr>
+      <td>Financial Modeling Prep</td>
+      <td>Adds company fundamentals and filings when configured.</td>
+    </tr>
+    <tr>
+      <td>Tavily</td>
+      <td>Extends web search and extraction when enabled.</td>
+    </tr>
+    <tr>
+      <td>Alpha Vantage</td>
+      <td>Adds technical and sentiment signals when enabled.</td>
+    </tr>
+    <tr>
+      <td>FAISS</td>
+      <td>Powers retrieval over the curated article catalog for RAG.</td>
+    </tr>
+    <tr>
+      <td rowspan="3" style="vertical-align: middle;">Safety and quality</td>
+      <td>OpenAI Moderation API</td>
+      <td>Screens incoming <code>/query</code> requests before they reach the agents.</td>
+    </tr>
+    <tr>
+      <td>Markdown validation + Streamlit sanitization</td>
+      <td>Validate assistant markdown server-side and sanitize rendered content in the UI.</td>
+    </tr>
+    <tr>
+      <td>DeepEval</td>
+      <td>Runs golden intent datasets with custom G-Eval rubrics to catch routing and answer-quality regressions.</td>
+    </tr>
+  </tbody>
+</table>
 
 Fincent is architected for robustness across local and hosted deployments. See
 [`TECHNICAL_DESIGN.md`](TECHNICAL_DESIGN.md) for specifics.

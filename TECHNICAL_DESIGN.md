@@ -1,5 +1,7 @@
 # Fincent Technical Design
 
+This document describes the design features adopted to make the deployment robust and resilient. The main one is the decision to separate the UI (StreamLit) and the backend (FastAPI and everything else) into two separate processes, which caused several important consequences. The other features relate to robustness against common disruptive actions for StreamLit, such as HuggingFace Space restart, browser reloads, etc.
+
 ## Decoupled Architecture
 
 Fincent uses a decoupled application architecture:
