@@ -87,7 +87,7 @@ _MARKET_RESEARCH_SUFFIX: str = "market-research"
 _GOAL_PLANNING_SUFFIX: str = "goal-planning"
 
 # Available chat models offered in the sidebar selector.
-_AVAILABLE_MODELS: List[str] = ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4", "gpt-4o-mini"]
+_AVAILABLE_MODELS: List[str] = ["gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4", "gpt-4o-mini"]
 _DEFAULT_MODEL: str = "gpt-5.4-mini"
 _MODEL_STATE_KEY: str = "selected_model"
 
@@ -646,7 +646,11 @@ def _agent_error_details(agent_payloads: List[Dict]) -> List[Dict[str, str]]:
     return out
 
 
-def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> None:
+def _render_plan_expander(
+    plan_payload: Dict,
+    agent_payloads: List[Dict],
+    model: Optional[str] = None,
+) -> None:
     """Show routing details for the most recent assistant turn.
 
     The expander is ordered for quick diagnosis:
@@ -665,6 +669,7 @@ def _render_plan_expander(plan_payload: Dict, agent_payloads: List[Dict]) -> Non
     with st.expander("Under the hood", expanded=False):
         agents_line = ", ".join(agents) if agents else "(none)"
         tools_line = ", ".join(tools) if tools else "(none)"
+        st.markdown(f"**Model used:** {model or '(unknown)'}")
         st.markdown(f"**Agents involved:** {agents_line}")
         st.markdown(f"**Tools called:** {tools_line}")
 
@@ -716,7 +721,11 @@ def _render_history(history: List[Dict]) -> None:
         with st.chat_message(turn["role"]):
             st.markdown(sanitize_streamlit_markdown(turn["content"] or ""))
             if turn["role"] == "assistant" and isinstance(turn.get("plan"), dict):
-                _render_plan_expander(turn["plan"], turn.get("agent_responses", []))
+                _render_plan_expander(
+                    turn["plan"],
+                    turn.get("agent_responses", []),
+                    turn.get("model"),
+                )
 
 
 def _run_chat_turn(
@@ -777,6 +786,7 @@ def _run_chat_turn(
             "content": response.answer or "",
             "plan": response.plan.model_dump(mode="json"),
             "agent_responses": [ar.model_dump(mode="json") for ar in response.agent_responses],
+            "model": response.model,
         }
     )
 

@@ -89,3 +89,4 @@ class QueryResponse(BaseModel):
     answer: str
     plan: RoutingPlan
     agent_responses: List[AgentResponse] = Field(default_factory=list)
+    model: str = Field(default="", description="Chat model active for this response.")

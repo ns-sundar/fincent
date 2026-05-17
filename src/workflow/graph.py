@@ -47,6 +47,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send
 
 from src.core.config import AppConfig, get_config
+from src.core.llm import get_current_model
 from src.core.schemas import Intent, QueryRequest, QueryResponse, RoutingPlan
 from src.utils.logging import get_logger
 from src.workflow.nodes import (
@@ -208,6 +209,7 @@ def run_query(
     compiled = graph or default_graph()
     tid = thread_id or request.session_id or str(uuid.uuid4())
     config = _thread_config(tid)
+    active_model = get_current_model()
 
     final_state: GraphState = compiled.invoke(
         {
@@ -223,6 +225,7 @@ def run_query(
         answer=final_state.get("final_answer") or "",
         plan=plan,
         agent_responses=list(final_state.get("agent_responses") or []),
+        model=active_model,
     )
 
 

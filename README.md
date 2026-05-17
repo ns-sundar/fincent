@@ -10,6 +10,27 @@ pinned: false
 
 # Fincent
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation and Usage](#installation-and-usage)
+  - [Prerequisites](#prerequisites)
+  - [Local Install](#local-install)
+  - [Hugging Face Spaces Install](#hugging-face-spaces-install)
+- [Architecture](#architecture)
+- [Guardrails](#guardrails)
+- [Evals](#evals)
+- [Validation](#validation)
+- [Agents](#agents)
+  - [Central Agent](#central-agent)
+  - [Q&A Agent](#qa-agent)
+  - [Portfolio Agent](#portfolio-agent)
+  - [Market Research Agent](#market-research-agent)
+  - [Goal Planning Agent](#goal-planning-agent)
+- [Repository Layout](#repository-layout)
+- [Configuration](#configuration)
+- [Caveats](#caveats)
+
 ## Overview
 
 Fincent is a multi-agent personal finance assistant. Aimed at the financially curious,
@@ -312,6 +333,11 @@ Run the e2e evals:
 deepeval test run eval/test_e2e_intents.py
 ```
 
+Or run the following script for more convenient output:
+```bash
+./eval/run-deepeval.sh
+```
+
 ```bash
 python -m pytest eval/test_e2e_intents.py
 ```
@@ -526,3 +552,16 @@ retries with **`llm.rate_limit_fallback_model`** (default **`gpt-5.4`** in
 `config.yaml`). Clear `FINCENT__LLM__RATE_LIMIT_FALLBACK_MODEL` to disable.
 
 The supported environment variables are documented in `.env.example`. You can copy and edit it for your install.
+
+---
+
+## Caveats
+
+Concurrent conversations in the same tab are not supported. If two or more browser
+windows use the same `session_id` and the same Fincent tab, such as two QnA windows
+both using `default-session-qna`, their writes target the same LangGraph thread and
+may race. Live responses can appear in each window, but a reload may not reliably
+rehydrate every response from the shared checkpoint.
+
+Concurrent use across different tabs is supported because each tab uses a distinct
+session id.

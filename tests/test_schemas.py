@@ -33,8 +33,10 @@ def test_query_response_round_trip():
         answer="hello",
         plan=RoutingPlan(intents=[Intent.QNA], handled_by_central=False),
         agent_responses=[AgentResponse(agent=AgentName.QNA, content="hi")],
+        model="gpt-test",
     )
     rebuilt = QueryResponse.model_validate(payload.model_dump())
     assert rebuilt.answer == "hello"
     assert rebuilt.plan.intents == [Intent.QNA]
     assert rebuilt.agent_responses[0].agent == AgentName.QNA
+    assert rebuilt.model == "gpt-test"
